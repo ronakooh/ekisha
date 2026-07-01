@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Ekisha Budget Control</title>
+<script>
+// ── PIN PROTECTION ───────────────────────────
+// Change this to your desired PIN
+const CORRECT_PIN = '2612';
+const SESSION_KEY = 'ekisha_auth';
+const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours in ms
+
+function checkAuth() {
+  const stored = sessionStorage.getItem(SESSION_KEY);
+  if (stored) {
+    const { ts } = JSON.parse(stored);
+    if (Date.now() - ts < SESSION_TTL) return true;
+    sessionStorage.removeItem(SESSION_KEY);
+  }
+  return false;
+}
+
+function saveAuth() {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ts: Date.now() }));
+}
+
+function showPinScreen() {
+  document.getElementById('pinScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  setTimeout(() => document.getElementById('pinInput').focus(), 100);
+}
+
+function showApp() {
+  document.getElementById('pinScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+function submitPin() {
+  const entered = document.getElementById('pinInput').value;
+  if (entered === CORRECT_PIN) {
+    saveAuth();
+    showApp();
+    loadStatus();
+  } else {
+    const box = document.getElementById('pinInput');
+    box.value = '';
+    box.placeholder = 'Wrong PIN — try again';
+    box.style.borderColor = '#A32D2D';
+    setTimeout(() => {
+      box.placeholder = 'Enter PIN';
+      box.style.borderColor = '';
+    }, 2000);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (checkAuth()) {
+    showApp();
+    loadStatus();
+  } else {
+    showPinScreen();
+  }
+});
+</script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --pink: #dc305f;
+    --green: #0F6E56;
+    --amber: #854F0B;
+    --red: #A32D2D;
+    --blue: #185FA5;
+    --bg: #f5f4f0;
+    --card: #ffffff;
+    --border: #e0ddd6;
+    --text: #1a1a1a;
+    --muted: #888;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 2rem;
+  }
+  .header {
+    background: var(--pink);
+    color: white;
+    padding: 1rem 1.25rem 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .sub {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }
+  .body { padding: 1rem; max-width: 480px; margin: 0 auto; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 1.25rem 0 0.6rem;
+  }
+  .campaign-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    margin-bottom: 0.85rem;
+    overflow: hidden;
+  }
+  .camp-header {
+    padding: 0.85rem 1rem 0.65rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .camp-name { font-size: 15px; font-weight: 600; }
+  .camp-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .live-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .badge-green { background: #EAF3DE; color: var(--green); }
+  .badge-amber { background: #FAEEDA; color: var(--amber); }
+  .badge-red   { background: #FCEBEB; color: var(--red); }
+  .override-banner {
+    background: #E6F1FB;
+    border-bottom: 1px solid #B5D4F4;
+    padding: 6px 1rem;
+    font-size: 12px;
+    color: var(--blue);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .camp-body { padding: 0.85rem 1rem; }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 0.85rem;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 6px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all .15s;
+  }
+  .tab-btn.active {
+    background: var(--pink);
+    border-color: var(--pink);
+    color: white;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* BOOST TAB */
+  .mult-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 0.65rem;
+  }
+  .mult-btn {
+    padding: 8px 4px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    color: var(--text);
+    transition: all .15s;
+  }
+  .mult-btn.boost.selected { background: #EAF3DE; border-color: var(--green); color: var(--green); }
+  .mult-btn.suppress.selected { background: #FAEEDA; border-color: var(--amber); color: var(--amber); }
+  .custom-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 0.65rem;
+    align-items: center;
+  }
+  .custom-row label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .custom-row input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    width: 80px;
+  }
+  .custom-row input:focus { border-color: var(--pink); }
+  .hours-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 0.75rem;
+  }
+  .hour-btn {
+    padding: 7px 4px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    color: var(--text);
+    transition: all .15s;
+  }
+  .hour-btn.selected { background: #E6F1FB; border-color: var(--blue); color: var(--blue); }
+  .preview-box {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+  }
+  .preview-box strong { color: var(--text); }
+
+  /* BASELINE TAB */
+  .baseline-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  .baseline-row label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .baseline-row input {
+    flex: 1;
+    padding: 9px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    outline: none;
+  }
+  .baseline-row input:focus { border-color: var(--pink); }
+
+  /* BUTTONS */
+  .btn {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn:active { opacity: 0.8; }
+  .btn-pink { background: var(--pink); color: white; }
+  .btn-green { background: var(--green); color: white; }
+  .btn-amber { background: var(--amber); color: white; }
+  .btn-outline {
+    background: white;
+    color: var(--red);
+    border: 1.5px solid var(--red);
+    margin-top: 6px;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a1a;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity .2s;
+    max-width: 90vw;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--green); }
+  .toast.error { background: var(--red); }
+
+  /* LOADING */
+  .loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .spinner {
+    width: 24px; height: 24px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--pink);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    margin: 0 auto 0.5rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .refresh-btn {
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+  }
+  .server-time { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- PIN SCREEN -->
+<div id="pinScreen" style="display:none;position:fixed;inset:0;background:#f5f4f0;z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:2rem">
+  <div style="text-align:center;max-width:280px;width:100%">
+    <div style="font-size:40px;margin-bottom:1rem">🔐</div>
+    <div style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:0.35rem">Ekisha Budget Control</div>
+    <div style="font-size:13px;color:#888;margin-bottom:2rem">Enter your PIN to continue</div>
+    <input
+      id="pinInput"
+      type="password"
+      inputmode="numeric"
+      maxlength="6"
+      placeholder="Enter PIN"
+      onkeydown="if(event.key==='Enter') submitPin()"
+      style="width:100%;padding:14px;font-size:22px;text-align:center;letter-spacing:8px;border:2px solid #e0ddd6;border-radius:12px;outline:none;background:white;margin-bottom:1rem"
+    >
+    <button
+      onclick="submitPin()"
+      style="width:100%;padding:13px;background:#dc305f;color:white;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer">
+      Unlock
+    </button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+
+<div class="header">
+  <h1>Ekisha Budget Control</h1>
+  <div class="sub">
+    <span class="dot"></span>
+    <span id="headerTime">Loading...</span>
+  </div>
+</div>
+
+<div class="body">
+  <div class="top-bar">
+    <div class="section-title" style="margin:0">Campaigns</div>
+    <button class="refresh-btn" onclick="loadStatus()">↻ Refresh</button>
+  </div>
+
+  <div id="campaignContainer">
+    <div class="loading">
+      <div class="spinner"></div>
+      Connecting to Meta...
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────
+const SERVICE_URL = 'https://ekisha-budget-manager-350350273853.asia-south1.run.app';
+
+// ── STATE ───────────────────────────────────
+let campaigns = [];
+let selectedMult = {};
+let selectedHours = {};
+let customMult = {};
+
+// ── INIT ────────────────────────────────────
+// loadStatus() is called by auth system after PIN check
+
+async function loadStatus() {
+  try {
+    const res  = await fetch(`${SERVICE_URL}/?action=status`);
+    const data = await res.json();
+
+    if (data.status !== 'ok') throw new Error('Bad response');
+
+    campaigns = data.campaigns;
+    document.getElementById('headerTime').textContent = data.server_time_ist || '';
+    renderCampaigns();
+  } catch(e) {
+    document.getElementById('campaignContainer').innerHTML =
+      `<div class="loading" style="color:#A32D2D">Failed to load — check connection<br><small>${e.message}</small></div>`;
+  }
+}
+
+function renderCampaigns() {
+  const container = document.getElementById('campaignContainer');
+  container.innerHTML = '';
+
+  campaigns.forEach((c, idx) => {
+    const hasOverride = c.override !== null;
+    const liveRs      = c.live_rs || 0;
+    const baselineRs  = c.baseline_rs || 0;
+    const shortName   = c.campaign.replace(/ \d+\/\d+\/\d+$/, '');
+
+    // Badge color based on rough ROAS expectation
+    const badgeClass = liveRs > baselineRs * 1.1 ? 'badge-green' :
+                       liveRs < baselineRs * 0.95 ? 'badge-amber' : 'badge-green';
+
+    const overrideBanner = hasOverride ? `
+      <div class="override-banner">
+        <span>⚡ Override active: ${c.override.multiplier}× · ₹${c.override.budget_rs.toLocaleString('en-IN')} · ${c.override.mins_left}m left</span>
+        <button onclick="clearBoost('${c.campaign}', ${idx})"
+          style="background:none;border:none;color:#A32D2D;font-size:12px;font-weight:600;cursor:pointer;padding:0">
+          Clear ✕
+        </button>
+      </div>` : '';
+
+    const card = document.createElement('div');
+    card.className = 'campaign-card';
+    card.innerHTML = `
+      ${overrideBanner}
+      <div class="camp-header">
+        <div>
+          <div class="camp-name">${shortName}</div>
+          <div class="camp-meta">Baseline ₹${baselineRs.toLocaleString('en-IN')} · Live ₹${liveRs ? liveRs.toLocaleString('en-IN') : '—'}</div>
+        </div>
+        <span class="live-badge ${badgeClass}">₹${liveRs ? liveRs.toLocaleString('en-IN') : '—'}/day</span>
+      </div>
+      <div class="camp-body">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab(${idx}, 'boost', this)">⚡ Boost / Suppress</button>
+          <button class="tab-btn" onclick="switchTab(${idx}, 'baseline', this)">📐 Update Baseline</button>
+        </div>
+
+        <!-- BOOST TAB -->
+        <div class="tab-content active" id="tab-boost-${idx}">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Boost multiplier</div>
+          <div class="mult-grid">
+            <button class="mult-btn boost" onclick="selectMult(${idx}, 1.25, this)">1.25×</button>
+            <button class="mult-btn boost" onclick="selectMult(${idx}, 1.5, this)">1.5×</button>
+            <button class="mult-btn boost" onclick="selectMult(${idx}, 1.75, this)">1.75×</button>
+            <button class="mult-btn boost" onclick="selectMult(${idx}, 2.0, this)">2×</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Suppress multiplier</div>
+          <div class="mult-grid">
+            <button class="mult-btn suppress" onclick="selectMult(${idx}, 0.85, this)">0.85×</button>
+            <button class="mult-btn suppress" onclick="selectMult(${idx}, 0.80, this)">0.80×</button>
+            <button class="mult-btn suppress" onclick="selectMult(${idx}, 0.70, this)">0.70×</button>
+            <button class="mult-btn suppress" onclick="selectMult(${idx}, 0.60, this)">0.60×</button>
+          </div>
+          <div class="custom-row">
+            <label>Custom:</label>
+            <input type="number" id="customMult-${idx}" placeholder="e.g. 1.3"
+              step="0.05" min="0.5" max="3.0"
+              oninput="onCustomMult(${idx}, this.value)" style="width:100px">
+            <span style="font-size:12px;color:var(--muted)">× baseline</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Duration</div>
+          <div class="hours-grid">
+            <button class="hour-btn" onclick="selectHours(${idx}, 1, this)">1h</button>
+            <button class="hour-btn" onclick="selectHours(${idx}, 2, this)">2h</button>
+            <button class="hour-btn" onclick="selectHours(${idx}, 3, this)">3h</button>
+            <button class="hour-btn" onclick="selectHours(${idx}, 6, this)">6h</button>
+          </div>
+          <div class="preview-box" id="preview-${idx}">
+            Select a multiplier and duration above
+          </div>
+          <button class="btn btn-pink" onclick="applyBoost(${idx})" id="boostBtn-${idx}">
+            Apply Override
+          </button>
+        </div>
+
+        <!-- BASELINE TAB -->
+        <div class="tab-content" id="tab-baseline-${idx}">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+            Current baseline: <strong>₹${baselineRs.toLocaleString('en-IN')}/day</strong>
+          </div>
+          <div class="baseline-row">
+            <label>New baseline</label>
+            <input type="number" id="newBaseline-${idx}"
+              placeholder="${baselineRs}" value="${baselineRs}"
+              min="750" step="50">
+            <span style="font-size:13px;color:var(--muted)">₹</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:0.75rem">
+            Dayparting multipliers apply on top of this value permanently.
+          </div>
+          <button class="btn btn-green" onclick="updateBaseline(${idx})" id="baselineBtn-${idx}">
+            Update Baseline
+          </button>
+        </div>
+
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// ── TAB SWITCHING ────────────────────────────
+function switchTab(idx, tab, btn) {
+  const card = btn.closest('.campaign-card');
+  card.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  card.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(`tab-${tab}-${idx}`).classList.add('active');
+}
+
+// ── MULTIPLIER SELECTION ─────────────────────
+function selectMult(idx, mult, btn) {
+  const card = btn.closest('.campaign-card');
+  card.querySelectorAll('.mult-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedMult[idx] = mult;
+  customMult[idx] = null;
+  document.getElementById(`customMult-${idx}`).value = '';
+  updatePreview(idx);
+}
+
+function onCustomMult(idx, val) {
+  const v = parseFloat(val);
+  if (!isNaN(v) && v >= 0.5 && v <= 3.0) {
+    selectedMult[idx] = v;
+    customMult[idx] = v;
+    const card = document.getElementById(`customMult-${idx}`).closest('.campaign-card');
+    card.querySelectorAll('.mult-btn').forEach(b => b.classList.remove('selected'));
+  } else {
+    selectedMult[idx] = null;
+  }
+  updatePreview(idx);
+}
+
+function selectHours(idx, hours, btn) {
+  const card = btn.closest('.campaign-card');
+  card.querySelectorAll('.hour-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedHours[idx] = hours;
+  updatePreview(idx);
+}
+
+function updatePreview(idx) {
+  const c    = campaigns[idx];
+  const mult = selectedMult[idx];
+  const hrs  = selectedHours[idx];
+  const box  = document.getElementById(`preview-${idx}`);
+  if (!mult || !hrs) {
+    box.innerHTML = 'Select a multiplier and duration above';
+    return;
+  }
+  const base   = c.baseline_rs;
+  const target = Math.max(Math.round(base * mult), 750);
+  const action = mult >= 1 ? '⬆ Boost' : '⬇ Suppress';
+  const color  = mult >= 1 ? 'var(--green)' : 'var(--amber)';
+  box.innerHTML = `
+    <strong style="color:${color}">${action}:</strong>
+    ₹${base.toLocaleString('en-IN')} × ${mult}× =
+    <strong>₹${target.toLocaleString('en-IN')}/day</strong>
+    for <strong>${hrs}h</strong>
+    → auto-reverts at ${getExpiryTime(hrs)}
+  `;
+}
+
+function getExpiryTime(hrs) {
+  const now = new Date();
+  now.setHours(now.getHours() + hrs);
+  return now.toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit', hour12: true}) + ' IST';
+}
+
+// ── APPLY BOOST ──────────────────────────────
+async function applyBoost(idx) {
+  const c    = campaigns[idx];
+  const mult = selectedMult[idx];
+  const hrs  = selectedHours[idx];
+
+  if (!mult) { showToast('Select a multiplier', 'error'); return; }
+  if (!hrs)  { showToast('Select a duration', 'error'); return; }
+
+  const btn = document.getElementById(`boostBtn-${idx}`);
+  btn.disabled = true;
+  btn.textContent = 'Applying...';
+
+  try {
+    const url = `${SERVICE_URL}/?action=boost` +
+      `&campaign=${encodeURIComponent(c.campaign)}` +
+      `&multiplier=${mult}` +
+      `&hours=${hrs}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (data.status === 'ok') {
+      showToast(`✅ ${c.campaign.replace(/ \d+\/\d+\/\d+$/, '')} → ₹${data.budget_set_rs.toLocaleString('en-IN')}/day for ${hrs}h`, 'success');
+      setTimeout(loadStatus, 1000);
+    } else {
+      showToast(data.error || 'Failed — check logs', 'error');
+    }
+  } catch(e) {
+    showToast('Network error — try again', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Apply Override';
+  }
+}
+
+// ── CLEAR BOOST ──────────────────────────────
+async function clearBoost(campName, idx) {
+  try {
+    const url = `${SERVICE_URL}/?action=clear_boost&campaign=${encodeURIComponent(campName)}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast('Override cleared — will revert at next hourly run', 'success');
+      setTimeout(loadStatus, 800);
+    } else {
+      showToast(data.error || 'Failed', 'error');
+    }
+  } catch(e) {
+    showToast('Network error', 'error');
+  }
+}
+
+// ── UPDATE BASELINE ──────────────────────────
+async function updateBaseline(idx) {
+  const c        = campaigns[idx];
+  const input    = document.getElementById(`newBaseline-${idx}`);
+  const budgetRs = parseFloat(input.value);
+
+  if (!budgetRs || budgetRs < 750) {
+    showToast('Minimum budget is ₹750', 'error');
+    return;
+  }
+
+  const btn = document.getElementById(`baselineBtn-${idx}`);
+  btn.disabled = true;
+  btn.textContent = 'Updating...';
+
+  try {
+    const url = `${SERVICE_URL}/?action=set_budget` +
+      `&campaign=${encodeURIComponent(c.campaign)}` +
+      `&budget=${budgetRs}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (data.status === 'ok') {
+      showToast(`✅ ${c.campaign.replace(/ \d+\/\d+\/\d+$/, '')} baseline → ₹${budgetRs.toLocaleString('en-IN')}`, 'success');
+      setTimeout(loadStatus, 1000);
+    } else {
+      showToast(data.error || 'Failed — check logs', 'error');
+    }
+  } catch(e) {
+    showToast('Network error — try again', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Update Baseline';
+  }
+}
+
+// ── TOAST ────────────────────────────────────
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.className = 'toast', 3500);
+}
+</script>
+</div><!-- end #app -->
+</body>
+</html>
