@@ -36,20 +36,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .header .sub{font-size:12px;opacity:.85;margin-top:2px;display:flex;align-items:center;gap:8px}
 .dot{width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block}
 .body{padding:1rem;max-width:480px;margin:0 auto}
-/* dropdown */
-.dropdown-wrapper{position:relative;margin-bottom:1rem}
-.dropdown-btn{width:100%;padding:14px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:12px;font-size:15px;font-weight:500;color:var(--text);cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;transition:border-color .15s}
-.dropdown-btn:hover{border-color:var(--pink)}
-.dropdown-btn .arrow{font-size:12px;color:var(--muted);transition:transform .2s}
-.dropdown-btn.open .arrow{transform:rotate(180deg)}
-.dropdown-menu{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1.5px solid var(--border);border-radius:12px;z-index:50;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.10);display:none}
-.dropdown-menu.open{display:block}
-.dropdown-item{padding:13px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s}
-.dropdown-item:last-child{border-bottom:none}
-.dropdown-item:hover{background:var(--bg)}
-.di-name{font-size:14px;font-weight:500;color:var(--text)}
-.di-meta{font-size:12px;color:var(--muted);margin-top:2px}
-.di-badge{float:right;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;margin-top:2px}
+/* pills */
+.pills-grid{display:flex;flex-direction:column;gap:8px;margin-bottom:1rem}
+.pill{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:12px 14px;cursor:pointer;transition:border-color .15s,transform .1s;text-align:left}
+.pill:active{transform:scale(.98)}
+.pill.selected{border-color:var(--pink);box-shadow:0 0 0 1px var(--pink)}
+.pill-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px}
+.pill-name{font-size:14px;font-weight:600;color:var(--text);line-height:1.3}
+.pill-badge{font-size:10px;padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.pill-stats{display:flex;gap:14px}
+.pill-stat{flex:1}
+.pill-stat .pv{font-size:15px;font-weight:600}
+.pill-stat .pl{font-size:10px;color:var(--muted);margin-top:1px;text-transform:uppercase;letter-spacing:.03em}
+.pill-loading{padding:20px 14px;text-align:center;color:var(--muted);font-size:12px}
 /* detail panel */
 .detail-panel{background:var(--card);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;display:none}
 .detail-panel.visible{display:block}
@@ -164,16 +163,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div id="loadingState" class="loading"><div class="spinner"></div>Connecting to Meta...</div>
   <div id="mainContent" style="display:none">
     <div class="top-bar">
-      <div class="section-title">Select Campaign</div>
+      <div class="section-title">Campaigns</div>
       <button class="refresh-btn" onclick="loadStatus()">↻ Refresh</button>
     </div>
-    <div class="dropdown-wrapper">
-      <button class="dropdown-btn" id="dropdownBtn" onclick="toggleDropdown()">
-        <span id="dropdownLabel">Choose a campaign...</span>
-        <span class="arrow">▼</span>
-      </button>
-      <div class="dropdown-menu" id="dropdownMenu"></div>
-    </div>
+    <div class="pills-grid" id="pillsGrid"></div>
     <div class="detail-panel" id="detailPanel"></div>
   </div>
 </div>
@@ -184,6 +177,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 const SERVICE_URL = 'https://ekisha-budget-manager-350350273853.asia-south1.run.app';
 let campaigns = [], selectedIdx = null, selectedMult = {}, selectedHours = {};
 let currentPeriod = 'last_7d', metricsCache = {};
+let pillMetrics = {}; // idx -> {roas, purchases, ctr} for pill display, from 'today' period
 
 // ── LOAD STATUS ──
 async function loadStatus() {
@@ -198,7 +192,9 @@ async function loadStatus() {
     document.getElementById('loadingState').style.display = 'none';
     document.getElementById('mainContent').style.display  = 'block';
     metricsCache = {};
-    renderDropdown();
+    pillMetrics = {};
+    renderPills(); // render immediately with loading placeholders
+    loadPillMetrics(); // then fill in ROAS/purchases/CTR per pill as they arrive
     if (selectedIdx !== null) renderDetail(selectedIdx);
   } catch(e) {
     document.getElementById('loadingState').innerHTML =
@@ -206,48 +202,82 @@ async function loadStatus() {
   }
 }
 
-// ── DROPDOWN ──
-function renderDropdown() {
-  const menu = document.getElementById('dropdownMenu');
-  menu.innerHTML = '';
-  campaigns.forEach((c, idx) => {
-    const hasOverride = c.override !== null;
-    const item = document.createElement('div');
-    item.className = 'dropdown-item';
-    item.onclick   = () => selectCampaign(idx);
-    const badgeClass = hasOverride ? 'badge-blue' : 'badge-green';
-    const badgeText  = hasOverride ? `⚡ ${c.override.multiplier}× active` : `₹${(c.live_rs||0).toLocaleString('en-IN')}/day`;
-    item.innerHTML = `
-      <span class="di-badge ${badgeClass}">${badgeText}</span>
-      <div class="di-name">${c.campaign}</div>
-      <div class="di-meta">Baseline ₹${(c.baseline_rs||0).toLocaleString('en-IN')} · Live ₹${c.live_rs ? c.live_rs.toLocaleString('en-IN') : '—'}</div>
-    `;
-    menu.appendChild(item);
+// ── PILL METRICS (today's ROAS/purchases/CTR, fetched per campaign) ──
+async function loadPillMetrics() {
+  campaigns.forEach(async (c, idx) => {
+    try {
+      const url  = `${SERVICE_URL}/?action=metrics&campaign=${encodeURIComponent(c.campaign)}&period=today`;
+      const res  = await fetch(url);
+      const data = await res.json();
+      if (data.status === 'ok') {
+        metricsCache[`${c.campaign}__today`] = data;
+        const m = data.campaign_metrics;
+        pillMetrics[idx] = m ? { roas: m.roas, purchases: m.purchases, ctr: m.ctr } : null;
+      } else {
+        pillMetrics[idx] = null;
+      }
+    } catch(e) {
+      pillMetrics[idx] = null;
+    }
+    renderPills(); // re-render as each campaign's metrics arrive, so pills fill in progressively
   });
 }
 
-function toggleDropdown() {
-  document.getElementById('dropdownBtn').classList.toggle('open');
-  document.getElementById('dropdownMenu').classList.toggle('open');
+// ── PILLS ──
+function roasClass(v) { return v >= 2.5 ? 'good' : v >= 1.5 ? 'warn' : 'bad'; }
+function roasColor(v) {
+  if (v === null || v === undefined) return 'var(--muted)';
+  return v >= 2.5 ? 'var(--green)' : v >= 1.5 ? 'var(--amber)' : 'var(--red)';
+}
+
+function renderPills() {
+  const grid = document.getElementById('pillsGrid');
+  grid.innerHTML = '';
+  campaigns.forEach((c, idx) => {
+    const hasOverride = c.override !== null;
+    const badgeClass = hasOverride ? 'badge-blue' : 'badge-green';
+    const badgeText  = hasOverride ? `⚡ ${c.override.multiplier}×` : `₹${(c.live_rs||0).toLocaleString('en-IN')}/day`;
+    const m = pillMetrics[idx];
+    const isSelected = selectedIdx === idx;
+
+    const pill = document.createElement('div');
+    pill.className = 'pill' + (isSelected ? ' selected' : '');
+    pill.onclick = () => selectCampaign(idx);
+
+    const statsHtml = (m === undefined) ? `
+      <div class="pill-loading">Loading today's metrics...</div>
+    ` : (m === null) ? `
+      <div class="pill-loading" style="color:var(--red)">Metrics unavailable</div>
+    ` : `
+      <div class="pill-stats">
+        <div class="pill-stat"><div class="pv" style="color:${roasColor(m.roas)}">${m.roas ? m.roas+'×' : '—'}</div><div class="pl">ROAS</div></div>
+        <div class="pill-stat"><div class="pv">${m.purchases ?? '—'}</div><div class="pl">Purchases</div></div>
+        <div class="pill-stat"><div class="pv">${m.ctr ? m.ctr+'%' : '—'}</div><div class="pl">CTR</div></div>
+      </div>
+    `;
+
+    pill.innerHTML = `
+      <div class="pill-top">
+        <div class="pill-name">${c.campaign}</div>
+        <span class="pill-badge ${badgeClass}">${badgeText}</span>
+      </div>
+      ${statsHtml}
+    `;
+    grid.appendChild(pill);
+  });
 }
 
 function selectCampaign(idx) {
   selectedIdx = idx;
-  const c = campaigns[idx];
-  document.getElementById('dropdownLabel').textContent = c.campaign;
-  document.getElementById('dropdownBtn').classList.remove('open');
-  document.getElementById('dropdownMenu').classList.remove('open');
   currentPeriod = 'last_7d';
+  renderPills(); // update selected-state highlight
   renderDetail(idx);
+  // scroll the detail panel into view — pills replace the dropdown, so there's
+  // no fixed anchor point above the panel anymore
+  setTimeout(() => {
+    document.getElementById('detailPanel').scrollIntoView({behavior:'smooth', block:'start'});
+  }, 50);
 }
-
-document.addEventListener('click', e => {
-  const w = document.querySelector('.dropdown-wrapper');
-  if (w && !w.contains(e.target)) {
-    document.getElementById('dropdownBtn').classList.remove('open');
-    document.getElementById('dropdownMenu').classList.remove('open');
-  }
-});
 
 // ── DETAIL PANEL ──
 function renderDetail(idx) {
@@ -346,7 +376,7 @@ function renderDetail(idx) {
   `;
   panel.classList.add('visible');
 
-  // Auto-load metrics for default period
+  // Auto-load metrics for default period — reuse pill's 'today' fetch if already cached
   loadMetrics(idx, 'today');
 }
 
@@ -373,15 +403,13 @@ async function loadMetrics(idx, period) {
   const content = document.getElementById(`metricsContent-${idx}`);
   if (!content) return;
 
-  // Show spinner
-  content.innerHTML = '<div class="metrics-loading"><div class="metrics-spinner"></div>Loading metrics...</div>';
-
-  // Use cache if available
+  // Use cache if available (pill pre-fetch already cached 'today' for every campaign)
   if (metricsCache[cacheKey]) {
     renderMetrics(idx, metricsCache[cacheKey]);
     return;
   }
 
+  content.innerHTML = '<div class="metrics-loading"><div class="metrics-spinner"></div>Loading metrics...</div>';
   try {
     const url  = `${SERVICE_URL}/?action=metrics&campaign=${encodeURIComponent(c.campaign)}&period=${period}`;
     const res  = await fetch(url);
@@ -401,7 +429,6 @@ function fmt(val, prefix='₹', suffix='', decimals=0) {
   return prefix + n.toLocaleString('en-IN', {minimumFractionDigits:decimals, maximumFractionDigits:decimals}) + suffix;
 }
 
-function roasClass(v) { return v >= 2.5 ? 'good' : v >= 1.5 ? 'warn' : 'bad'; }
 function cprClass(v) { return v && v < 500 ? 'good' : v && v < 800 ? 'warn' : 'bad'; }
 
 function renderMetricCards(m) {
