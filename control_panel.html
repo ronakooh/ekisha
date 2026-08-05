@@ -460,6 +460,27 @@ function renderMetricCards(m) {
   `;
 }
 
+function renderBreakdownTable(rows, labelHeader) {
+  if (!rows || !rows.length) return '<div style="color:var(--muted);font-size:12px;padding:.25rem 0 .5rem">No breakdown data for this period</div>';
+  const body = rows.map(r => `
+    <tr>
+      <td>${r.label}</td>
+      <td>${fmt(r.spend,'₹')}</td>
+      <td class="${roasClass(r.roas)}-cell">${r.roas ? r.roas+'×' : '—'}</td>
+      <td>${r.purchases || 0}</td>
+      <td>${r.ctr ? r.ctr+'%' : '—'}</td>
+    </tr>
+  `).join('');
+  return `
+    <div class="adset-scroll">
+      <table class="adset-table">
+        <thead><tr><th>${labelHeader}</th><th>Spend</th><th>ROAS</th><th>Purch</th><th>CTR</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderMetrics(idx, data) {
   const content = document.getElementById(`metricsContent-${idx}`);
   if (!content) return;
@@ -496,6 +517,10 @@ function renderMetrics(idx, data) {
   content.innerHTML = `
     <div class="metric-section-title" style="margin-top:0;border-top:none">Campaign total</div>
     ${renderMetricCards(cm)}
+    <div class="metric-section-title">By time of day</div>
+    ${renderBreakdownTable(data.hourly_breakdown, 'Hour')}
+    <div class="metric-section-title">By age</div>
+    ${renderBreakdownTable(data.age_breakdown, 'Age')}
     <div class="metric-section-title">Adset breakdown</div>
     <div class="adset-scroll">
       <table class="adset-table">
