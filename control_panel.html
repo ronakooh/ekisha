@@ -44,7 +44,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .pill-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px}
 .pill-name{font-size:14px;font-weight:600;color:var(--text);line-height:1.3}
 .pill-badge{font-size:10px;padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap;flex-shrink:0}
-.pill-stats{display:flex;gap:14px}
+.pill-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 14px}
 .pill-stat{flex:1}
 .pill-stat .pv{font-size:15px;font-weight:600}
 .pill-stat .pl{font-size:10px;color:var(--muted);margin-top:1px;text-transform:uppercase;letter-spacing:.03em}
@@ -212,7 +212,7 @@ async function loadPillMetrics() {
       if (data.status === 'ok') {
         metricsCache[`${c.campaign}__today`] = data;
         const m = data.campaign_metrics;
-        pillMetrics[idx] = m ? { roas: m.roas, purchases: m.purchases, ctr: m.ctr } : null;
+        pillMetrics[idx] = m ? { roas: m.roas, purchases: m.purchases, ctr: m.ctr, spend: m.spend } : null;
       } else {
         pillMetrics[idx] = null;
       }
@@ -251,6 +251,7 @@ function renderPills() {
     ` : `
       <div class="pill-stats">
         <div class="pill-stat"><div class="pv" style="color:${roasColor(m.roas)}">${m.roas ? m.roas+'×' : '—'}</div><div class="pl">ROAS</div></div>
+        <div class="pill-stat"><div class="pv">${m.spend !== undefined && m.spend !== null ? '₹'+m.spend.toLocaleString('en-IN') : '—'}</div><div class="pl">Spend/day</div></div>
         <div class="pill-stat"><div class="pv">${m.purchases ?? '—'}</div><div class="pl">Purchases</div></div>
         <div class="pill-stat"><div class="pv">${m.ctr ? m.ctr+'%' : '—'}</div><div class="pl">CTR</div></div>
       </div>
