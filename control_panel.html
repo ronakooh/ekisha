@@ -167,6 +167,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="section-title">Campaigns</div>
       <button class="refresh-btn" onclick="loadStatus()">↻ Refresh</button>
     </div>
+    <div class="period-tabs" id="pillPeriodTabs" style="margin-bottom:.75rem">
+      <button class="period-btn active" onclick="selectPillPeriod('today',this)">Today</button>
+      <button class="period-btn" onclick="selectPillPeriod('yesterday',this)">Yesterday</button>
+      <button class="period-btn" onclick="selectPillPeriod('last_7d',this)">7 days</button>
+      <button class="period-btn" onclick="selectPillPeriod('last_14d',this)">15 days</button>
+      <button class="period-btn" onclick="selectPillPeriod('last_30d',this)">30 days</button>
+    </div>
     <div class="pills-grid" id="pillsGrid"></div>
     <div class="detail-panel" id="detailPanel"></div>
   </div>
@@ -178,7 +185,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 const SERVICE_URL = 'https://ekisha-budget-manager-350350273853.asia-south1.run.app';
 let campaigns = [], selectedIdx = null, selectedMult = {}, selectedHours = {};
 let currentPeriod = 'last_7d', metricsCache = {};
-let pillMetrics = {}; // idx -> {roas, purchases, ctr} for pill display, from 'today' period
+let pillMetrics = {}; // idx -> {roas, purchases, ctr, ...} for pill display, from the selected pillPeriod
+let pillPeriod = 'today';
 
 // ── LOAD STATUS ──
 async function loadStatus() {
@@ -203,24 +211,37 @@ async function loadStatus() {
   }
 }
 
-// ── PILL METRICS (today's ROAS/purchases/CTR, fetched per campaign) ──
+// ── PILL PERIOD SELECTOR ──
+function selectPillPeriod(period, btn) {
+  pillPeriod = period;
+  document.querySelectorAll('#pillPeriodTabs .period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  pillMetrics = {};
+  renderPills(); // show loading placeholders immediately
+  loadPillMetrics();
+}
+
+// ── PILL METRICS (ROAS/purchases/CTR/ATC for the selected pillPeriod, fetched per campaign) ──
 async function loadPillMetrics() {
+  const periodAtRequestTime = pillPeriod; // guard against a stale response overwriting a newer period switch
   campaigns.forEach(async (c, idx) => {
     try {
-      const url  = `${SERVICE_URL}/?action=metrics&campaign=${encodeURIComponent(c.campaign)}&period=today`;
+      const url  = `${SERVICE_URL}/?action=metrics&campaign=${encodeURIComponent(c.campaign)}&period=${periodAtRequestTime}`;
       const res  = await fetch(url);
       const data = await res.json();
+      if (periodAtRequestTime !== pillPeriod) return; // period changed again before this response landed — discard
       if (data.status === 'ok') {
-        metricsCache[`${c.campaign}__today`] = data;
+        metricsCache[`${c.campaign}__${periodAtRequestTime}`] = data;
         const m = data.campaign_metrics;
         pillMetrics[idx] = m ? { roas: m.roas, purchases: m.purchases, ctr: m.ctr, spend: m.spend, atc: m.atc, cost_per_atc: m.cost_per_atc, conv_value: m.conv_value, impressions: m.impressions } : null;
       } else {
         pillMetrics[idx] = null;
       }
     } catch(e) {
+      if (periodAtRequestTime !== pillPeriod) return;
       pillMetrics[idx] = null;
     }
-    renderPills(); // re-render as each campaign's metrics arrive, so pills fill in progressively
+    if (periodAtRequestTime === pillPeriod) renderPills(); // re-render as each campaign's metrics arrive, so pills fill in progressively
   });
 }
 
@@ -252,7 +273,7 @@ function renderPills() {
     ` : `
       <div class="pill-stats">
         <div class="pill-stat"><div class="pv" style="color:${roasColor(m.roas)}">${m.roas ? m.roas+'×' : '—'}</div><div class="pl">ROAS</div></div>
-        <div class="pill-stat"><div class="pv">${m.spend !== undefined && m.spend !== null ? '₹'+m.spend.toLocaleString('en-IN') : '—'}</div><div class="pl">Spend/day</div></div>
+        <div class="pill-stat"><div class="pv">${m.spend !== undefined && m.spend !== null ? '₹'+m.spend.toLocaleString('en-IN') : '—'}</div><div class="pl">Spend</div></div>
         <div class="pill-stat"><div class="pv">${m.purchases ?? '—'}</div><div class="pl">Purchases</div></div>
         <div class="pill-stat"><div class="pv">${m.ctr ? m.ctr+'%' : '—'}</div><div class="pl">CTR</div></div>
         <div class="pill-stat"><div class="pv">${m.atc ?? '—'}</div><div class="pl">ATC</div></div>
@@ -568,6 +589,8 @@ function renderMetrics(idx, data) {
     ${renderBreakdownTable(data.hourly_breakdown, 'Hour')}
     <div class="metric-section-title">By age</div>
     ${renderBreakdownTable(data.age_breakdown, 'Age')}
+    <div class="metric-section-title">By platform</div>
+    ${renderBreakdownTable(data.platform_breakdown, 'Platform')}
     <div class="metric-section-title">Adset breakdown</div>
     <div class="adset-scroll">
       <table class="adset-table">
