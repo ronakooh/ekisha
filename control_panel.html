@@ -176,6 +176,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="pills-grid" id="pillsGrid"></div>
     <div class="detail-panel" id="detailPanel"></div>
+
+    <div class="top-bar" style="margin-top:1.5rem">
+      <div class="section-title">Order Tracking — CAPI Relay</div>
+      <button class="refresh-btn" onclick="loadCapiQueue()">↻ Refresh</button>
+    </div>
+    <div id="capiQueueSummary" class="pill summary" style="margin-bottom:.75rem">
+      <div class="pill-top"><div class="pill-name">📦 Pending Orders</div></div>
+      <div class="pill-loading">Loading...</div>
+    </div>
+    <div id="capiQueueTableWrap"></div>
   </div>
 </div>
 </div>
@@ -183,6 +193,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 const SERVICE_URL = 'https://ekisha-budget-manager-350350273853.asia-south1.run.app';
+const CAPI_RELAY_URL = 'https://ekisha-capi-relay-350350273853.asia-south1.run.app';
+const COD_TIMEOUT_HOURS = 48; // matches capi_relay.py's default sweep threshold
 let campaigns = [], selectedIdx = null, selectedMult = {}, selectedHours = {};
 let currentPeriod = 'last_7d', metricsCache = {};
 let pillMetrics = {}; // idx -> {roas, purchases, ctr, ...} for pill display, from the selected pillPeriod
@@ -205,9 +217,73 @@ async function loadStatus() {
     renderPills(); // render immediately with loading placeholders
     loadPillMetrics(); // then fill in ROAS/purchases/CTR per pill as they arrive
     if (selectedIdx !== null) renderDetail(selectedIdx);
+    loadCapiQueue(); // independent widget — failure here shouldn't block campaign view
   } catch(e) {
     document.getElementById('loadingState').innerHTML =
       `<div style="color:#A32D2D">Failed to load<br><small>${e.message}</small></div>`;
+  }
+}
+
+// ── CAPI RELAY QUEUE (pending orders not yet sent to Meta) ──
+async function loadCapiQueue() {
+  const summaryEl = document.getElementById('capiQueueSummary');
+  const tableWrap = document.getElementById('capiQueueTableWrap');
+  if (!summaryEl || !tableWrap) return;
+
+  try {
+    const res  = await fetch(`${CAPI_RELAY_URL}/?hook=status`);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error('Bad response');
+
+    const pending  = data.pending || [];
+    const cod      = pending.filter(p => p.type === 'cod');
+    const prepaid  = pending.filter(p => p.type === 'prepaid');
+    const overdue  = cod.filter(p => p.age_hours > COD_TIMEOUT_HOURS);
+
+    summaryEl.innerHTML = `
+      <div class="pill-top">
+        <div class="pill-name">📦 Pending Orders</div>
+        <span class="pill-badge ${overdue.length ? 'badge-amber' : 'badge-green'}">${pending.length} waiting</span>
+      </div>
+      <div class="pill-stats">
+        <div class="pill-stat"><div class="pv">${cod.length}</div><div class="pl">COD queued</div></div>
+        <div class="pill-stat"><div class="pv">${prepaid.length}</div><div class="pl">Prepaid queued</div></div>
+        <div class="pill-stat"><div class="pv" style="color:${overdue.length ? 'var(--red)' : 'var(--green)'}">${overdue.length}</div><div class="pl">Overdue (48h+)</div></div>
+      </div>
+    `;
+
+    if (!pending.length) {
+      tableWrap.innerHTML = '';
+      return;
+    }
+
+    const rows = pending
+      .sort((a,b) => b.age_hours - a.age_hours)
+      .map(p => {
+        const isOverdue = p.type === 'cod' && p.age_hours > COD_TIMEOUT_HOURS;
+        return `
+          <tr${isOverdue ? ' style="background:#FCEEEE"' : ''}>
+            <td class="adset-name-cell" title="${p.order_name || p.order_id}">${p.order_name || p.order_id}</td>
+            <td style="text-transform:capitalize">${p.type}</td>
+            <td>${fmt(p.value)}</td>
+            <td class="${isOverdue ? 'bad-cell' : ''}">${p.age_hours}h${isOverdue ? ' ⚠' : ''}</td>
+          </tr>`;
+      }).join('');
+
+    tableWrap.innerHTML = `
+      <div class="adset-scroll">
+        <table class="adset-table">
+          <thead><tr><th>Order</th><th>Type</th><th>Value</th><th>Waiting</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${pending.some(p => p.type === 'cod' && p.age_hours > COD_TIMEOUT_HOURS)
+        ? '<div style="font-size:11px;color:var(--red);margin-top:6px">⚠ Orders past 48h without ORDER_CONFIRMED/ORDER_CANCELLED need a manual check in Shopify.</div>'
+        : ''}
+    `;
+  } catch(e) {
+    summaryEl.innerHTML = `<div class="pill-top"><div class="pill-name">📦 Pending Orders</div></div><div class="pill-loading" style="color:var(--red)">Failed to load — check CAPI_RELAY_URL / CORS</div>`;
+    tableWrap.innerHTML = '';
   }
 }
 
