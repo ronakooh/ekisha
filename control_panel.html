@@ -198,6 +198,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </select>
     </div>
     <div id="capiSentTableWrap"></div>
+
+    <div class="top-bar" style="margin-top:1.25rem;margin-bottom:.5rem">
+      <div class="section-title">Cancelled Orders</div>
+      <select id="capiCancelledPeriodSelect" onchange="selectCapiCancelledPeriod(this.value)"
+        style="border:1.5px solid var(--border);border-radius:8px;padding:5px 8px;font-size:11px;color:var(--muted);background:var(--card)">
+        <option value="today" selected>Today</option>
+        <option value="3">Last 3 days</option>
+        <option value="7">Last 7 days</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+    <div id="capiCancelledTableWrap"></div>
   </div>
 </div>
 </div>
@@ -208,6 +220,7 @@ const SERVICE_URL = 'https://ekisha-budget-manager-350350273853.asia-south1.run.
 const CAPI_RELAY_URL = 'https://ekisha-capi-relay-350350273853.asia-south1.run.app';
 const COD_TIMEOUT_HOURS = 48; // matches capi_relay.py's default sweep threshold
 let capiSentPeriod = 'today'; // 'today', '3', '7', or 'all' — matches capi_relay.py's sent_days param
+let capiCancelledPeriod = 'today'; // 'today', '3', '7', or 'all' — matches capi_relay.py's cancelled_days param
 let campaigns = [], selectedIdx = null, selectedMult = {}, selectedHours = {};
 let currentPeriod = 'last_7d', metricsCache = {};
 let pillMetrics = {}; // idx -> {roas, purchases, ctr, ...} for pill display, from the selected pillPeriod
@@ -243,13 +256,18 @@ async function selectCapiSentPeriod(period) {
   await loadCapiQueue();
 }
 
+async function selectCapiCancelledPeriod(period) {
+  capiCancelledPeriod = period;
+  await loadCapiQueue();
+}
+
 async function loadCapiQueue() {
   const summaryEl = document.getElementById('capiQueueSummary');
   const tableWrap = document.getElementById('capiQueueTableWrap');
   if (!summaryEl || !tableWrap) return;
 
   try {
-    const res  = await fetch(`${CAPI_RELAY_URL}/?hook=status&sent_days=${capiSentPeriod}`);
+    const res  = await fetch(`${CAPI_RELAY_URL}/?hook=status&sent_days=${capiSentPeriod}&cancelled_days=${capiCancelledPeriod}`);
     const data = await res.json();
     if (data.status !== 'ok') throw new Error('Bad response');
 
@@ -272,33 +290,32 @@ async function loadCapiQueue() {
 
     if (!pending.length) {
       tableWrap.innerHTML = '';
-      return;
+    } else {
+      const rows = pending
+        .sort((a,b) => b.age_hours - a.age_hours)
+        .map(p => {
+          const isOverdue = p.type === 'cod' && p.age_hours > COD_TIMEOUT_HOURS;
+          return `
+            <tr${isOverdue ? ' style="background:#FCEEEE"' : ''}>
+              <td class="adset-name-cell" title="${p.order_name || p.order_id}">${p.order_name || p.order_id}</td>
+              <td style="text-transform:capitalize">${p.type}</td>
+              <td>${fmt(p.value)}</td>
+              <td class="${isOverdue ? 'bad-cell' : ''}">${p.age_hours}h${isOverdue ? ' ⚠' : ''}</td>
+            </tr>`;
+        }).join('');
+
+      tableWrap.innerHTML = `
+        <div class="adset-scroll">
+          <table class="adset-table">
+            <thead><tr><th>Order</th><th>Type</th><th>Value</th><th>Waiting</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        ${pending.some(p => p.type === 'cod' && p.age_hours > COD_TIMEOUT_HOURS)
+          ? '<div style="font-size:11px;color:var(--red);margin-top:6px">⚠ Orders past 48h without ORDER_CONFIRMED/cancellation need a manual check in Shopify.</div>'
+          : ''}
+      `;
     }
-
-    const rows = pending
-      .sort((a,b) => b.age_hours - a.age_hours)
-      .map(p => {
-        const isOverdue = p.type === 'cod' && p.age_hours > COD_TIMEOUT_HOURS;
-        return `
-          <tr${isOverdue ? ' style="background:#FCEEEE"' : ''}>
-            <td class="adset-name-cell" title="${p.order_name || p.order_id}">${p.order_name || p.order_id}</td>
-            <td style="text-transform:capitalize">${p.type}</td>
-            <td>${fmt(p.value)}</td>
-            <td class="${isOverdue ? 'bad-cell' : ''}">${p.age_hours}h${isOverdue ? ' ⚠' : ''}</td>
-          </tr>`;
-      }).join('');
-
-    tableWrap.innerHTML = `
-      <div class="adset-scroll">
-        <table class="adset-table">
-          <thead><tr><th>Order</th><th>Type</th><th>Value</th><th>Waiting</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      ${pending.some(p => p.type === 'cod' && p.age_hours > COD_TIMEOUT_HOURS)
-        ? '<div style="font-size:11px;color:var(--red);margin-top:6px">⚠ Orders past 48h without ORDER_CONFIRMED/ORDER_CANCELLED need a manual check in Shopify.</div>'
-        : ''}
-    `;
 
     // Recently sent to Meta — covers orders that fired and left the pending
     // queue too fast to catch above (prepaid, or a COD confirmed in seconds).
@@ -329,11 +346,44 @@ async function loadCapiQueue() {
         </div>
       `;
     }
+
+    // Cancelled orders — orders dropped from the queue via a cancellation
+    // tag, Shopify's own orders/cancelled webhook, or a voided/refunded
+    // financial status. Never sent to Meta.
+    const cancelledWrap = document.getElementById('capiCancelledTableWrap');
+    const cancelledRecent = data.cancelled_recent || [];
+    if (!cancelledRecent.length) {
+      cancelledWrap.innerHTML = '<div class="pill-loading">No cancellations in this period.</div>';
+    } else {
+      const cancelledRows = cancelledRecent.map(c => {
+        const mins = c.minutes_ago;
+        const whenLabel = mins < 60 ? `${Math.round(mins)}m ago`
+                         : mins < 1440 ? `${Math.round(mins/60)}h ago`
+                         : `${Math.round(mins/1440)}d ago`;
+        return `
+          <tr>
+            <td class="adset-name-cell" title="${c.order_name || c.order_id}">${c.order_name || c.order_id}</td>
+            <td>${fmt(c.value)}</td>
+            <td style="text-transform:capitalize">${c.reason}</td>
+            <td class="bad-cell">${whenLabel}</td>
+          </tr>`;
+      }).join('');
+      cancelledWrap.innerHTML = `
+        <div class="adset-scroll">
+          <table class="adset-table">
+            <thead><tr><th>Order</th><th>Value</th><th>Reason</th><th>Cancelled</th></tr></thead>
+            <tbody>${cancelledRows}</tbody>
+          </table>
+        </div>
+      `;
+    }
   } catch(e) {
     summaryEl.innerHTML = `<div class="pill-top"><div class="pill-name">📦 Pending Orders</div></div><div class="pill-loading" style="color:var(--red)">Failed to load — check CAPI_RELAY_URL / CORS</div>`;
     tableWrap.innerHTML = '';
     const sentWrap = document.getElementById('capiSentTableWrap');
     if (sentWrap) sentWrap.innerHTML = '';
+    const cancelledWrap = document.getElementById('capiCancelledTableWrap');
+    if (cancelledWrap) cancelledWrap.innerHTML = '';
   }
 }
 
