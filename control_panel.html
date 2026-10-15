@@ -327,7 +327,7 @@ async function loadCapiQueue() {
     if (!sentRecent.length) {
       sentWrap.innerHTML = '<div class="pill-loading">Nothing sent in this period.</div>';
     } else {
-            const totActual = sentRecent.reduce((a, s) => a + (Number(s.value) || 0), 0);
+      const totActual = sentRecent.reduce((a, s) => a + (Number(s.value) || 0), 0);
       const totSent   = sentRecent.reduce((a, s) => a + (Number(s.sent_value ?? s.value) || 0), 0);
       const totHidden = totActual - totSent;
       const sentRows = sentRecent.map(s => {
@@ -340,7 +340,7 @@ async function loadCapiQueue() {
             <td class="adset-name-cell" title="${s.order_name || s.order_id}">${s.order_name || s.order_id}</td>
             <td style="text-transform:capitalize">${s.type}</td>
             <td>${fmt(s.value)}</td>
-                        <td${s.capped ? ' style="color:var(--amber, #d98a00);font-weight:600"' : ''}>${fmt(s.sent_value ?? s.value)}${s.capped ? ' ⚠ capped' : ''}</td>
+            <td${s.capped ? ' style="color:var(--amber, #d98a00);font-weight:600"' : ''}>${fmt(s.sent_value ?? s.value)}${s.capped ? ' ⚠ capped' : ''}</td>
             <td class="good-cell">${whenLabel}</td>
           </tr>`;
       }).join('');
@@ -349,7 +349,7 @@ async function loadCapiQueue() {
           <table class="adset-table">
             <thead><tr><th>Order</th><th>Type</th><th>Actual value</th><th>Sent to Meta</th><th>Sent</th></tr></thead>
             <tbody>${sentRows}</tbody>
-                        <tfoot><tr style="font-weight:700">
+            <tfoot><tr style="font-weight:700">
               <td colspan="2">Total (${sentRecent.length} orders)</td>
               <td>${fmt(totActual)}</td>
               <td>${fmt(totSent)}${totHidden > 0 ? ` <span style="font-weight:400;opacity:.7">(${fmt(totHidden)} not reported)</span>` : ''}</td>
@@ -620,7 +620,7 @@ function renderDetail(idx) {
         </div>
         <div class="baseline-row">
           <label>New baseline</label>
-          <input type="number" id="newBaseline-${idx}" placeholder="${baselineRs}" value="${baselineRs}" min="750" step="50">
+          <input type="number" id="newBaseline-${idx}" placeholder="${baselineRs}" value="${baselineRs}" min="450" step="50">
           <span style="font-size:13px;color:var(--muted)">₹</span>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
@@ -886,7 +886,7 @@ function updatePreview(idx) {
   if (!box) return;
   if (!mult || !hrs) { box.innerHTML = 'Select a multiplier and duration above'; return; }
   const base   = c.baseline_rs;
-  const target = Math.max(Math.round(base * mult), 750);
+  const target = Math.max(Math.round(base * mult), 450);
   const action = mult >= 1 ? '⬆ Boost' : '⬇ Suppress';
   const color  = mult >= 1 ? 'var(--green)' : 'var(--amber)';
   const now = new Date(); now.setTime(now.getTime() + hrs*3600000);
@@ -925,7 +925,7 @@ async function clearBoost(campName) {
 async function updateBaseline(idx) {
   const c = campaigns[idx];
   const budgetRs = parseFloat(document.getElementById(`newBaseline-${idx}`).value);
-  if (!budgetRs || budgetRs < 750) { showToast('Minimum budget is ₹750','error'); return; }
+  if (!budgetRs || budgetRs < 450) { showToast('Minimum budget is ₹450','error'); return; }
   const btn = document.getElementById(`baselineBtn-${idx}`);
   btn.disabled = true; btn.textContent = 'Updating...';
   try {
