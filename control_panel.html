@@ -327,6 +327,9 @@ async function loadCapiQueue() {
     if (!sentRecent.length) {
       sentWrap.innerHTML = '<div class="pill-loading">Nothing sent in this period.</div>';
     } else {
+            const totActual = sentRecent.reduce((a, s) => a + (Number(s.value) || 0), 0);
+      const totSent   = sentRecent.reduce((a, s) => a + (Number(s.sent_value ?? s.value) || 0), 0);
+      const totHidden = totActual - totSent;
       const sentRows = sentRecent.map(s => {
         const mins = s.minutes_ago;
         const whenLabel = mins < 60 ? `${Math.round(mins)}m ago`
@@ -337,14 +340,21 @@ async function loadCapiQueue() {
             <td class="adset-name-cell" title="${s.order_name || s.order_id}">${s.order_name || s.order_id}</td>
             <td style="text-transform:capitalize">${s.type}</td>
             <td>${fmt(s.value)}</td>
+                        <td${s.capped ? ' style="color:var(--amber, #d98a00);font-weight:600"' : ''}>${fmt(s.sent_value ?? s.value)}${s.capped ? ' ⚠ capped' : ''}</td>
             <td class="good-cell">${whenLabel}</td>
           </tr>`;
       }).join('');
       sentWrap.innerHTML = `
         <div class="adset-scroll">
           <table class="adset-table">
-            <thead><tr><th>Order</th><th>Type</th><th>Value</th><th>Sent</th></tr></thead>
+            <thead><tr><th>Order</th><th>Type</th><th>Actual value</th><th>Sent to Meta</th><th>Sent</th></tr></thead>
             <tbody>${sentRows}</tbody>
+                        <tfoot><tr style="font-weight:700">
+              <td colspan="2">Total (${sentRecent.length} orders)</td>
+              <td>${fmt(totActual)}</td>
+              <td>${fmt(totSent)}${totHidden > 0 ? ` <span style="font-weight:400;opacity:.7">(${fmt(totHidden)} not reported)</span>` : ''}</td>
+              <td></td>
+            </tr></tfoot>
           </table>
         </div>
       `;
