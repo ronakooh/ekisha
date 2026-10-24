@@ -16,7 +16,7 @@ function checkAuth() {
 }
 function saveAuth() { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ts: Date.now()})); }
 function showPinScreen() { document.getElementById('pinScreen').style.display='flex'; document.getElementById('app').style.display='none'; setTimeout(()=>document.getElementById('pinInput').focus(),100); }
-function showApp() { document.getElementById('pinScreen').style.display='none'; document.getElementById('app').style.display='block'; }
+function showApp() { document.getElementById('pinScreen').style.display='none'; document.getElementById('app').style.display='block'; try { if (localStorage.getItem('ekisha_tab') === 'rail') showMainTab('rail'); } catch (e) {} }
 function submitPin() {
   const entered = document.getElementById('pinInput').value;
   if (entered === CORRECT_PIN) { saveAuth(); showApp(); loadStatus(); }
@@ -167,6 +167,12 @@ textarea.rl-in{width:100%;min-height:74px;resize:vertical;line-height:1.4}
 .rl-photo{font-size:10px}
 .rl-photo img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:6px;display:block;margin-bottom:3px;background:#eee}
 .rl-photo select{width:100%;font-size:11px;padding:4px;border:1.5px solid var(--border);border-radius:6px;background:#fff}
+.maintabs{display:flex;gap:6px;margin-top:10px}
+.maintabs button{flex:1;padding:8px 6px;border:1.5px solid rgba(255,255,255,.55);border-radius:9px;background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.maintabs button.on{background:#fff;color:#1a1a1a;border-color:#fff}
+body.rail-mode{--pink:#8a5a2b;--bg:#faf6ef}
+body.rail-mode .header{background:#2b221b}
+#railTab{background:#faf6ef;min-height:70vh}
 .rl-checker{background-color:#f6f1ea;background-image:linear-gradient(45deg,#e9e3d9 25%,transparent 25%,transparent 75%,#e9e3d9 75%),linear-gradient(45deg,#e9e3d9 25%,transparent 25%,transparent 75%,#e9e3d9 75%);background-size:16px 16px;background-position:0 0,8px 8px;border-radius:10px;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .rl-checker img{width:100%;height:100%;object-fit:contain}
 .rl-empty{aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:10px;color:var(--muted);font-size:12px;margin-bottom:8px}
@@ -198,10 +204,11 @@ textarea.rl-in{width:100%;min-height:74px;resize:vertical;line-height:1.4}
 <!-- MAIN APP -->
 <div id="app" style="display:none">
 <div class="header">
-  <h1>Ekisha Budget Control</h1>
+  <h1 id="hdrTitle">Ekisha Budget Control</h1>
   <div class="sub"><span class="dot"></span><span id="headerTime">Loading...</span></div>
+  <div class="maintabs"><button id="mtAds" class="on" onclick="showMainTab('ads')">Ads &amp; budget</button><button id="mtRail" onclick="showMainTab('rail')">👗 Clothing rail</button></div>
 </div>
-<div class="body">
+<div class="body" id="adsTab">
   <div id="loadingState" class="loading"><div class="spinner"></div>Connecting to Meta...</div>
   <div id="mainContent" style="display:none">
     <div class="top-bar">
@@ -252,14 +259,10 @@ textarea.rl-in{width:100%;min-height:74px;resize:vertical;line-height:1.4}
     </div>
     <div id="capiCancelledTableWrap"></div>
 
-    <details id="railDetails" style="margin-top:1.5rem" ontoggle="if(this.open)railInit()">
-      <summary style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
-        <span class="section-title">Rail images — website clothing rail</span>
-        <span style="font-size:11px;color:var(--muted)">tap to open</span>
-      </summary>
-      <div id="railWrap"></div>
-    </details>
   </div>
+</div>
+<div class="body" id="railTab" style="display:none">
+  <div id="railWrap"></div>
 </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -1034,6 +1037,23 @@ function railHydrate() {
 }
 
 // ── key gate + loading ──
+function showMainTab(t) {
+  const rail = t === 'rail';
+  document.getElementById('adsTab').style.display = rail ? 'none' : '';
+  document.getElementById('railTab').style.display = rail ? '' : 'none';
+  document.body.classList.toggle('rail-mode', rail);
+  document.getElementById('mtAds').classList.toggle('on', !rail);
+  document.getElementById('mtRail').classList.toggle('on', rail);
+  document.getElementById('hdrTitle').textContent = rail ? 'Ekisha Clothing Rail' : 'Ekisha Budget Control';
+  try { localStorage.setItem('ekisha_tab', t); } catch (e) {}
+  if (rail && document.getElementById('app').style.display !== 'none') railInit();
+  window.scrollTo(0, 0);
+}
+function railPreview(view) {
+  const g = k => +document.getElementById(`rl-${view}-${k}`).value;
+  const img = document.querySelector(`#rl-img-${view}`); if (!img) return;
+  img.style.filter = `brightness(${1 + g('bright') / 100}) contrast(${1 + g('contrast') / 100}) saturate(${1 + g('sat') / 100}) sepia(${Math.max(0, g('warm')) / 200}) hue-rotate(${Math.min(0, g('warm')) / 4}deg)`;
+}
 function railInit() { if (!railKey) { railRenderKey(); return; } railRefresh(); }
 
 function railRenderKey(msg) {
@@ -1078,10 +1098,14 @@ function railPut(p) {
 function railRender() {
   const d = railData, c = d.config || {};
   let h = `<div class="rl-cfg">Model ${railEsc(c.model)} · ${railEsc(c.size)} · today ${c.used_today}/${c.daily_limit} images
-    · style reference: ${d.anchor ? railEsc(d.anchor.handle) : 'none yet'}
+    · style reference: ${d.anchor ? railEsc(d.anchor.handle) : 'automatic (last approved photo of the same kind)'}
     · <label style="cursor:pointer;text-decoration:underline">upload style reference<input type="file" accept="image/*" hidden onchange="railUploadAnchor(this)"></label>
     · <a href="#" onclick="railForgetKey();return false" style="color:var(--muted)">change key</a></div>`;
 
+  h += `<details class="rl-box"><summary style="cursor:pointer;font-size:12px;font-weight:600">House rules — lessons applied to every new photo</summary>
+    <div class="rl-meta" style="margin:6px 0">Anything you keep correcting goes here once, e.g. “never add buttons on the back”. Added to every prompt.</div>
+    <textarea id="railRules" class="rl-in" style="min-height:70px">${railEsc(d.rules || '')}</textarea>
+    <button class="rl-btn wide" style="margin-top:6px" onclick="railSaveRules(this)">Save rules</button></details>`;
   h += `<div class="rl-box"><div class="rl-sub">Add a product</div>
     <div class="rl-row"><input id="railHandleIn" class="rl-in" placeholder="Product handle or product URL"
       onkeydown="if(event.key==='Enter')railAdd(this)">
@@ -1121,6 +1145,16 @@ async function railLoadShop(handle) {
   railShop = (await railCall('product', {q: {handle}})).product;
   return railShop;
 }
+async function railSaveRules(btn) {
+  await railDo(btn, 'Saving…', async () => { const r = await railCall('rules', {body: {rules: document.getElementById('railRules').value}}); railData.rules = r.rules; showToast('Rules saved', 'success'); });
+}
+async function railDescribe(handle, btn) {
+  await railDo(btn, 'Reading photos…', async () => {
+    await railLoadShop(handle);
+    railPut((await railCall('describe', {body: {handle}})).product); railRender();
+    showToast('Filled in from the Shopify photos — check the text', 'success');
+  });
+}
 async function railAdd(btn) {
   const handle = railParseHandle(document.getElementById('railHandleIn').value);
   if (!handle) { showToast('Enter a product handle or URL', 'error'); return; }
@@ -1131,6 +1165,11 @@ async function railAdd(btn) {
       railPut(r.product);
     }
     railOpen = handle;
+    const cur = railFind(handle);
+    if (!cur.front_desc.trim()) {            // new product: read the Shopify photos automatically
+      try { railPut((await railCall('describe', {body: {handle}})).product); }
+      catch (e) { showToast('Could not auto-fill: ' + e.message, 'error'); }
+    }
     railRender();
     document.getElementById('railEditor')?.scrollIntoView({behavior: 'smooth'});
   });
@@ -1169,6 +1208,7 @@ function railEditorHtml(p) {
     <div class="rl-row" style="justify-content:space-between"><div><div class="rl-name" style="font-size:15px">${railEsc(p.title)}</div><div class="rl-meta">${railEsc(p.handle)}</div></div>
       <button class="rl-btn" onclick="railOpen=null;railRender()">Close</button></div>
 
+    <button class="rl-btn wide pink" style="margin-bottom:8px" onclick="railDescribe('${railEsc(p.handle)}',this)">✨ Fill steps 1–2 from the Shopify photos</button>
     <div class="rl-sub">1 · Pick the photos to copy from</div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Mark one clear FRONT photo and one clear BACK photo. Add a close-up as “detail” if the print or neckline is hard to see.</div>
     <div class="rl-photos">${photos || '<div class="rl-meta">No photos loaded.</div>'}</div>
@@ -1209,11 +1249,11 @@ function railViewHtml(p, view) {
   const cands = v.cands.map(c => `<img class="rl-cand ${c.gen === v.cur ? 'sel' : ''}" data-rp="p/${h}/${view}/raw_${c.gen}.${c.ext}" data-w="160"
     onclick="railSelect('${h}','${view}',${c.gen})">`).join('');
   const sliders = RAIL_SLIDERS.map(([k, l]) => `<div class="rl-sl"><span>${l}</span>
-    <input type="range" min="-40" max="40" value="${t[k] || 0}" id="rl-${view}-${k}" oninput="this.nextElementSibling.textContent=this.value"><span>${t[k] || 0}</span></div>`).join('');
+    <input type="range" min="-40" max="40" value="${t[k] || 0}" id="rl-${view}-${k}" oninput="this.nextElementSibling.textContent=this.value;railPreview('${view}')"><span>${t[k] || 0}</span></div>`).join('');
   const st = v.status === 'approved' ? '<span class="rl-badge ok">Approved ✓ (live version)</span>' : '<span class="rl-badge draft">Draft — not on the website</span>';
-  return `<div class="rl-checker"><img data-rp="p/${h}/${view}/cur_final.webp" data-rv="${v.ver}"></div>
+  return `<div class="rl-checker"><img id="rl-img-${view}" data-rp="p/${h}/${view}/cur_final.webp" data-rv="${v.ver}"></div>
     <div style="margin:8px 0">${st}</div>
-    <div class="rl-meta">Tap another try to compare:</div><div class="rl-cands">${cands}</div>
+    <div class="rl-meta" style="margin-top:6px">Sliders preview instantly here — press “Apply colour changes” to save them. Tap another try to compare:</div><div class="rl-cands">${cands}</div>
     ${sliders}
     <div class="rl-row" style="margin:8px 0">
       <button class="rl-btn" style="flex:1" onclick="railTweak('${h}','${view}',this)">Apply colour changes</button>
