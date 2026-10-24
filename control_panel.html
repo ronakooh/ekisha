@@ -173,6 +173,18 @@ textarea.rl-in{width:100%;min-height:74px;resize:vertical;line-height:1.4}
 body.rail-mode{--pink:#8a5a2b;--bg:#faf6ef}
 body.rail-mode .header{background:#2b221b}
 #railTab{background:#faf6ef;min-height:70vh}
+.rl-seg{display:flex;gap:6px;margin-bottom:10px}
+.rl-seg button{flex:1;padding:9px 6px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted)}
+.rl-seg button.on{background:var(--pink);border-color:var(--pink);color:#fff}
+.rl-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.rl-chip{padding:5px 11px;border:1.5px solid var(--border);border-radius:20px;background:#fff;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted)}
+.rl-chip.on{border-color:var(--pink);color:var(--pink)}
+.rl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rl-card{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:8px}
+.rl-card .pair{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px}
+.rl-card .pair div{aspect-ratio:4/5;background:#f1eee8;border-radius:6px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted)}
+.rl-card .pair img{width:100%;height:100%;object-fit:contain}
+.rl-cb{display:flex;gap:8px;align-items:center;font-size:13px;padding:5px 0}
 .rl-checker{background-color:#f6f1ea;background-image:linear-gradient(45deg,#e9e3d9 25%,transparent 25%,transparent 75%,#e9e3d9 75%),linear-gradient(45deg,#e9e3d9 25%,transparent 25%,transparent 75%,#e9e3d9 75%);background-size:16px 16px;background-position:0 0,8px 8px;border-radius:10px;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .rl-checker img{width:100%;height:100%;object-fit:contain}
 .rl-empty{aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:10px;color:var(--muted);font-size:12px;margin-bottom:8px}
@@ -996,6 +1008,9 @@ const RAIL_URL = 'https://ekisha-rail-350350273853.asia-south1.run.app';
 let railKey = '';
 try { railKey = localStorage.getItem('ekisha_rail_key') || ''; } catch(e) {}
 let railData = null;      // { products, anchor, config }
+let railOpenBox = {rules: false, rails: false};
+let railFilter = '';     // '' = all products, otherwise a rail id
+let railView = 'products'; // products | library
 let railOpen = null;      // handle being edited
 let railShop = null;      // Shopify product (photos) for the open handle
 const railBlobs = new Map();
@@ -1102,16 +1117,45 @@ function railRender() {
     · <label style="cursor:pointer;text-decoration:underline">upload style reference<input type="file" accept="image/*" hidden onchange="railUploadAnchor(this)"></label>
     · <a href="#" onclick="railForgetKey();return false" style="color:var(--muted)">change key</a></div>`;
 
-  h += `<details class="rl-box"><summary style="cursor:pointer;font-size:12px;font-weight:600">House rules — lessons applied to every new photo</summary>
+  h += `<details class="rl-box" ${railOpenBox.rules ? 'open' : ''} ontoggle="railOpenBox.rules=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:600">House rules — lessons applied to every new photo</summary>
     <div class="rl-meta" style="margin:6px 0">Anything you keep correcting goes here once, e.g. “never add buttons on the back”. Added to every prompt.</div>
     <textarea id="railRules" class="rl-in" style="min-height:70px">${railEsc(d.rules || '')}</textarea>
     <button class="rl-btn wide" style="margin-top:6px" onclick="railSaveRules(this)">Save rules</button></details>`;
+  h += `<details class="rl-box" ${railOpenBox.rails ? 'open' : ''} ontoggle="railOpenBox.rails=this.open"><summary style="cursor:pointer;font-size:12px;font-weight:600">Rails — create and manage (${(d.rails || []).length})</summary>
+    <div class="rl-meta" style="margin:6px 0">A rail is a named group of products. Make one mixed rail for the homepage and one per category. A product can be on several rails. In the Shopify section, type the Rail ID to show that rail.</div>
+    ${(d.rails || []).map(r => `<div class="rl-prod"><div class="rl-info"><div class="rl-name">${railEsc(r.name)}</div><div class="rl-meta">Rail ID: <b>${railEsc(r.id)}</b></div></div>
+      <button class="rl-btn" onclick="railRenameRail('${railEsc(r.id)}',this)">Rename</button><button class="rl-btn red" onclick="railDeleteRail('${railEsc(r.id)}',this)">Delete</button></div>`).join('')}
+    <div class="rl-row" style="margin-top:8px"><input id="railNewRail" class="rl-in" placeholder="New rail name, e.g. Kurta sets" onkeydown="if(event.key==='Enter')railNewRailGo(this)"><button class="rl-btn pink" onclick="railNewRailGo(this)">Create</button></div></details>`;
   h += `<div class="rl-box"><div class="rl-sub">Add a product</div>
     <div class="rl-row"><input id="railHandleIn" class="rl-in" placeholder="Product handle or product URL"
       onkeydown="if(event.key==='Enter')railAdd(this)">
     <button class="rl-btn pink" onclick="railAdd(this)">Load</button></div></div>`;
 
-  const prods = (d.products || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  const rails = d.rails || [];
+  const inRail = (p, r) => !r || (p.rails || []).includes(r);
+  const liveN = r => (d.products || []).filter(p => p.published && inRail(p, r)).length;
+  h += `<div class="rl-seg"><button class="${railView === 'products' ? 'on' : ''}" onclick="railView='products';railRender()">Products</button>
+    <button class="${railView === 'library' ? 'on' : ''}" onclick="railView='library';railRender()">Photo library</button></div>`;
+  h += `<div class="rl-chips"><span class="rl-chip ${railFilter === '' ? 'on' : ''}" onclick="railFilter='';railRender()">All (${liveN('')} live)</span>` +
+    rails.map(r => `<span class="rl-chip ${railFilter === r.id ? 'on' : ''}" onclick="railFilter='${railEsc(r.id)}';railRender()">${railEsc(r.name)} (${liveN(r.id)})</span>`).join('') + `</div>`;
+
+  const prods = (d.products || []).filter(p => inRail(p, railFilter)).sort((a, b) => (a.order || 0) - (b.order || 0));
+  if (railView === 'library') {
+    const cards = prods.filter(p => p.views.front.approved || p.views.back.approved).map(p => {
+      const f = p.views.front.approved, bk = p.views.back.approved;
+      const im = x => x ? `<img src="${railEsc(x.thumb)}" loading="lazy">` : '—';
+      const chips = (p.rails || []).map(r => (rails.find(x => x.id === r) || {}).name).filter(Boolean).map(n => `<span class="rl-badge ok">${railEsc(n)}</span>`).join('');
+      return `<div class="rl-card"><div class="pair"><div>${im(f)}</div><div>${im(bk)}</div></div>
+        <div class="rl-name">${railEsc(p.title)}</div>
+        <div class="rl-meta">${p.published ? '<span class="rl-badge live">LIVE</span>' : '<span class="rl-badge draft">approved, not live</span>'}${chips}</div>
+        <div class="rl-row" style="margin-top:6px"><button class="rl-btn" style="flex:1" onclick="railView='products';railEdit('${railEsc(p.handle)}',this)">Edit</button>
+        ${p.published ? `<button class="rl-btn red" onclick="railPublish('${railEsc(p.handle)}',false,this)">Remove</button>` : `<button class="rl-btn green" onclick="railPublish('${railEsc(p.handle)}',true,this)">Publish</button>`}</div></div>`;
+    }).join('');
+    h += cards ? `<div class="rl-grid">${cards}</div>` : `<div class="rl-box rl-meta">No approved photos${railFilter ? ' on this rail' : ''} yet.</div>`;
+    h += `<button class="refresh-btn" style="margin-top:10px" onclick="railRefresh()">↻ Refresh</button>`;
+    railWrapSet(h); railHydrate();
+    return;
+  }
   if (prods.length) {
     h += `<div class="rl-box">`;
     prods.forEach(p => {
@@ -1128,6 +1172,8 @@ function railRender() {
           <button class="rl-btn" onclick="railEdit('${railEsc(p.handle)}',this)">${railOpen === p.handle ? 'Opened' : 'Open'}</button></div></div>`;
     });
     h += `</div>`;
+  } else {
+    h += `<div class="rl-box rl-meta">No products${railFilter ? ' on this rail yet. Open a product and tick this rail in step 5.' : ' yet. Add one above.'}</div>`;
   }
   if (railOpen && railFind(railOpen)) h += railEditorHtml(railFind(railOpen));
   h += `<button class="refresh-btn" onclick="railRefresh()">↻ Refresh</button>`;
@@ -1226,7 +1272,10 @@ function railEditorHtml(p) {
     <div class="rl-sub">3 · Front photo</div>${railViewHtml(p, 'front')}
     <div class="rl-sub">4 · Back photo</div>${railViewHtml(p, 'back')}
 
-    <div class="rl-sub">5 · Website rail</div>
+    <div class="rl-sub">5 · Which rails should it appear on?</div>
+    ${((railData.rails || []).map(r => `<label class="rl-cb"><input type="checkbox" class="rl-rail" value="${railEsc(r.id)}" ${(p.rails || []).includes(r.id) ? 'checked' : ''} onchange="railSaveForm(true)"> ${railEsc(r.name)}</label>`).join('')) || '<div class="rl-meta">No rails yet.</div>'}
+    <div class="rl-meta" style="margin:4px 0 10px">Ticked rails update live (if the product is published). With none ticked it only shows on a rail that has no rail name set.</div>
+    <div class="rl-sub">Publish</div>
     ${p.published
       ? `<div class="rl-meta" style="margin-bottom:8px">This product is LIVE on the rail. Approving a new photo updates it automatically.</div>
          <button class="rl-btn red wide" onclick="railPublish('${railEsc(p.handle)}',false,this)">Remove from the rail</button>`
@@ -1272,7 +1321,8 @@ async function railSaveForm(silent, btn) {
   document.querySelectorAll('#railEditor .rl-role').forEach(s => { if (s.value) refs[s.value].push(s.dataset.url); });
   const body = {handle: p.handle, kind: document.getElementById('rl-kind').value,
     front_desc: document.getElementById('rl-front').value, back_desc: document.getElementById('rl-back').value,
-    dupatta: document.getElementById('rl-dup').value, cutout: document.getElementById('rl-cut').checked, refs};
+    dupatta: document.getElementById('rl-dup').value, cutout: document.getElementById('rl-cut').checked, refs,
+    rails: [...document.querySelectorAll('#railEditor .rl-rail:checked')].map(x => x.value)};
   const run = async () => { railPut((await railCall('save', {body})).product); };
   if (silent) { await run(); return; }
   await railDo(btn, 'Saving…', async () => { await run(); showToast('Saved', 'success'); });
@@ -1311,7 +1361,20 @@ async function railPublish(handle, published, btn) {
   });
 }
 async function railMove(handle, dir, btn) {
-  await railDo(btn, '…', async () => { const d = await railCall('reorder', {body: {handle, dir}}); railData.products = d.products; railRender(); });
+  await railDo(btn, '…', async () => { const d = await railCall('reorder', {body: {handle, dir, rail: railFilter}}); railData.products = d.products; railRender(); });
+}
+async function railNewRailGo(btn) {
+  const name = document.getElementById('railNewRail').value.trim(); if (!name) { showToast('Type a rail name', 'error'); return; }
+  await railDo(btn, '…', async () => { const d = await railCall('rail_save', {body: {name}}); railData.rails = d.rails; railRender(); showToast('Rail created — tick it on products in step 5', 'success'); });
+}
+async function railRenameRail(id, btn) {
+  const cur = (railData.rails.find(r => r.id === id) || {}).name || '';
+  const name = prompt('New name for this rail (its ID stays “' + id + '”):', cur); if (!name) return;
+  await railDo(btn, '…', async () => { const d = await railCall('rail_save', {body: {id, name}}); railData.rails = d.rails; railRender(); });
+}
+async function railDeleteRail(id, btn) {
+  if (!confirm('Delete this rail? Products stay, but any website section pointing at it will become empty.')) return;
+  await railDo(btn, '…', async () => { const d = await railCall('rail_delete', {body: {id}}); railData.rails = d.rails; railData.products = d.products; if (railFilter === id) railFilter = ''; railRender(); });
 }
 async function railAnchor(handle, btn) {
   await railDo(btn, '…', async () => { await railCall('anchor', {body: {handle}}); railData.anchor = {handle}; railRender(); showToast('Style reference set', 'success'); });
