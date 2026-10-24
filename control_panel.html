@@ -137,6 +137,47 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge-green{background:#EAF3DE;color:var(--green)}
 .badge-amber{background:#FAEEDA;color:var(--amber)}
 .badge-blue{background:#E6F1FB;color:var(--blue)}
+
+/* ── rail images ── */
+.rl-box{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px}
+.rl-row{display:flex;gap:8px;align-items:center}
+.rl-in{flex:1;min-width:0;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;background:#fff;font-family:inherit}
+.rl-in:focus{border-color:var(--pink)}
+textarea.rl-in{width:100%;min-height:74px;resize:vertical;line-height:1.4}
+.rl-btn{border:1.5px solid var(--border);background:#fff;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text);white-space:nowrap}
+.rl-btn:disabled{opacity:.5;cursor:not-allowed}
+.rl-btn.pink{background:var(--pink);border-color:var(--pink);color:#fff}
+.rl-btn.green{background:var(--green);border-color:var(--green);color:#fff}
+.rl-btn.red{border-color:var(--red);color:var(--red)}
+.rl-btn.wide{width:100%;padding:12px;font-size:14px}
+.rl-sub{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.rl-sub:first-child{margin-top:0}
+.rl-prod{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:.5px solid var(--border)}
+.rl-prod:first-child{border-top:none}
+.rl-thumb{width:46px;height:58px;border-radius:6px;background:#f1eee8;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
+.rl-thumb img{width:100%;height:100%;object-fit:contain}
+.rl-info{flex:1;min-width:0}
+.rl-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rl-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.rl-badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;margin-right:4px}
+.rl-badge.ok{background:#EAF3DE;color:var(--green)}
+.rl-badge.draft{background:#FAEEDA;color:var(--amber)}
+.rl-badge.live{background:#E6F1FB;color:var(--blue)}
+.rl-photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.rl-photo{font-size:10px}
+.rl-photo img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:6px;display:block;margin-bottom:3px;background:#eee}
+.rl-photo select{width:100%;font-size:11px;padding:4px;border:1.5px solid var(--border);border-radius:6px;background:#fff}
+.rl-checker{background-color:#f6f1ea;background-image:linear-gradient(45deg,#e9e3d9 25%,transparent 25%,transparent 75%,#e9e3d9 75%),linear-gradient(45deg,#e9e3d9 25%,transparent 25%,transparent 75%,#e9e3d9 75%);background-size:16px 16px;background-position:0 0,8px 8px;border-radius:10px;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.rl-checker img{width:100%;height:100%;object-fit:contain}
+.rl-empty{aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;background:var(--bg);border-radius:10px;color:var(--muted);font-size:12px;margin-bottom:8px}
+.rl-cands{display:flex;gap:6px;overflow-x:auto;margin:8px 0;padding-bottom:2px}
+.rl-cand{width:54px;height:68px;object-fit:cover;border-radius:6px;border:2px solid transparent;cursor:pointer;flex-shrink:0;background:#eee}
+.rl-cand.sel{border-color:var(--pink)}
+.rl-sl{display:grid;grid-template-columns:78px 1fr 34px;gap:6px;align-items:center;font-size:11px;color:var(--muted);margin:3px 0}
+.rl-sl input{width:100%}
+.rl-err{color:var(--red);font-size:12px;padding:8px 0}
+.rl-cfg{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px}
+.rl-spin{position:absolute;inset:0;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -210,6 +251,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </select>
     </div>
     <div id="capiCancelledTableWrap"></div>
+
+    <details id="railDetails" style="margin-top:1.5rem" ontoggle="if(this.open)railInit()">
+      <summary style="cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+        <span class="section-title">Rail images — website clothing rail</span>
+        <span style="font-size:11px;color:var(--muted)">tap to open</span>
+      </summary>
+      <div id="railWrap"></div>
+    </details>
   </div>
 </div>
 </div>
@@ -939,6 +988,328 @@ async function updateBaseline(idx) {
 }
 
 // ── TOAST ──
+// ── RAIL IMAGES (website clothing rail: generate → review → publish) ──
+const RAIL_URL = 'https://ekisha-rail-350350273853.asia-south1.run.app';
+let railKey = '';
+try { railKey = localStorage.getItem('ekisha_rail_key') || ''; } catch(e) {}
+let railData = null;      // { products, anchor, config }
+let railOpen = null;      // handle being edited
+let railShop = null;      // Shopify product (photos) for the open handle
+const railBlobs = new Map();
+
+function railEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function railWrapSet(html) { const w = document.getElementById('railWrap'); if (w) w.innerHTML = html; }
+
+async function railCall(hook, opts) {
+  opts = opts || {};
+  const qs = new URLSearchParams(Object.assign({hook}, opts.q || {})).toString();
+  const res = await fetch(`${RAIL_URL}/?${qs}`, {
+    method: opts.body ? 'POST' : 'GET',
+    headers: Object.assign({'X-Rail-Key': railKey}, opts.body ? {'Content-Type': 'application/json'} : {}),
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  let data = null;
+  try { data = await res.json(); } catch(e) {}
+  if (!res.ok || !data || data.status !== 'ok') throw new Error((data && data.error) || `HTTP ${res.status}`);
+  return data;
+}
+
+async function railBlob(path, w, ver) {
+  const k = `${path}|${w || 0}|${ver || 0}`;
+  if (railBlobs.has(k)) return railBlobs.get(k);
+  const q = new URLSearchParams({hook: 'img', p: path, v: ver || 0});
+  if (w) q.set('w', w);
+  const res = await fetch(`${RAIL_URL}/?${q}`, {headers: {'X-Rail-Key': railKey}});
+  if (!res.ok) throw new Error('img ' + res.status);
+  const url = URL.createObjectURL(await res.blob());
+  railBlobs.set(k, url);
+  return url;
+}
+function railHydrate() {
+  document.querySelectorAll('#railWrap img[data-rp]').forEach(async img => {
+    const p = img.dataset.rp, w = +(img.dataset.w || 0), v = +(img.dataset.rv || 0);
+    img.removeAttribute('data-rp');
+    try { img.src = await railBlob(p, w, v); } catch(e) { img.alt = '✕'; }
+  });
+}
+
+// ── key gate + loading ──
+function railInit() { if (!railKey) { railRenderKey(); return; } railRefresh(); }
+
+function railRenderKey(msg) {
+  railWrapSet(`<div class="rl-box">
+    <div class="rl-sub">Rail key</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Enter the key you set when deploying the rail service. It is kept only in this browser.</div>
+    ${msg ? `<div class="rl-err">${railEsc(msg)}</div>` : ''}
+    <div class="rl-row"><input id="railKeyIn" class="rl-in" type="password" placeholder="Rail key" onkeydown="if(event.key==='Enter')railSaveKey()">
+    <button class="rl-btn pink" onclick="railSaveKey()">Save</button></div></div>`);
+}
+function railSaveKey() {
+  const v = (document.getElementById('railKeyIn').value || '').trim();
+  if (!v) return;
+  railKey = v;
+  try { localStorage.setItem('ekisha_rail_key', v); } catch(e) {}
+  railRefresh();
+}
+function railForgetKey() {
+  railKey = '';
+  try { localStorage.removeItem('ekisha_rail_key'); } catch(e) {}
+  railRenderKey();
+}
+
+async function railRefresh() {
+  railWrapSet('<div class="metrics-loading"><div class="metrics-spinner"></div>Loading…</div>');
+  try {
+    railData = await railCall('list');
+    railRender();
+  } catch(e) {
+    if (/Wrong key|HTTP 401/.test(e.message)) { railRenderKey('Wrong key — try again'); return; }
+    railWrapSet(`<div class="rl-err">${railEsc(e.message)}</div><button class="rl-btn" onclick="railRefresh()">↻ Retry</button>`);
+  }
+}
+
+function railFind(handle) { return (railData.products || []).find(p => p.handle === handle); }
+function railPut(p) {
+  const i = railData.products.findIndex(x => x.handle === p.handle);
+  if (i >= 0) railData.products[i] = p; else railData.products.push(p);
+}
+
+// ── main render ──
+function railRender() {
+  const d = railData, c = d.config || {};
+  let h = `<div class="rl-cfg">Model ${railEsc(c.model)} · ${railEsc(c.size)} · today ${c.used_today}/${c.daily_limit} images
+    · style reference: ${d.anchor ? railEsc(d.anchor.handle) : 'none yet'}
+    · <label style="cursor:pointer;text-decoration:underline">upload style reference<input type="file" accept="image/*" hidden onchange="railUploadAnchor(this)"></label>
+    · <a href="#" onclick="railForgetKey();return false" style="color:var(--muted)">change key</a></div>`;
+
+  h += `<div class="rl-box"><div class="rl-sub">Add a product</div>
+    <div class="rl-row"><input id="railHandleIn" class="rl-in" placeholder="Product handle or product URL"
+      onkeydown="if(event.key==='Enter')railAdd(this)">
+    <button class="rl-btn pink" onclick="railAdd(this)">Load</button></div></div>`;
+
+  const prods = (d.products || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+  if (prods.length) {
+    h += `<div class="rl-box">`;
+    prods.forEach(p => {
+      const f = p.views.front, b = p.views.back;
+      const badge = (v, label) => v.approved && v.status === 'approved' ? `<span class="rl-badge ok">${label} ✓</span>`
+        : v.cur ? `<span class="rl-badge draft">${label} draft</span>` : '';
+      const thumb = f.cur ? `<img data-rp="p/${railEsc(p.handle)}/front/cur_thumb.webp" data-w="120" data-rv="${f.ver}">` : '—';
+      h += `<div class="rl-prod">
+        <div class="rl-thumb">${thumb}</div>
+        <div class="rl-info"><div class="rl-name">${railEsc(p.title)}</div>
+          <div class="rl-meta">${p.published ? '<span class="rl-badge live">LIVE</span>' : ''}${badge(f, 'Front')}${badge(b, 'Back')}</div></div>
+        <div style="display:flex;gap:4px">
+          ${p.published ? `<button class="rl-btn" onclick="railMove('${railEsc(p.handle)}',-1,this)">▲</button><button class="rl-btn" onclick="railMove('${railEsc(p.handle)}',1,this)">▼</button>` : ''}
+          <button class="rl-btn" onclick="railEdit('${railEsc(p.handle)}',this)">${railOpen === p.handle ? 'Opened' : 'Open'}</button></div></div>`;
+    });
+    h += `</div>`;
+  }
+  if (railOpen && railFind(railOpen)) h += railEditorHtml(railFind(railOpen));
+  h += `<button class="refresh-btn" onclick="railRefresh()">↻ Refresh</button>`;
+  railWrapSet(h);
+  railHydrate();
+}
+
+// ── add / open ──
+function railParseHandle(s) {
+  s = (s || '').trim();
+  const m = s.match(/\/products\/([a-z0-9_\-]+)/i);
+  return (m ? m[1] : s).toLowerCase().replace(/[?#].*$/, '');
+}
+async function railLoadShop(handle) {
+  railShop = (await railCall('product', {q: {handle}})).product;
+  return railShop;
+}
+async function railAdd(btn) {
+  const handle = railParseHandle(document.getElementById('railHandleIn').value);
+  if (!handle) { showToast('Enter a product handle or URL', 'error'); return; }
+  await railDo(btn, 'Loading…', async () => {
+    const shop = await railLoadShop(handle);
+    if (!railFind(handle)) {
+      const r = await railCall('save', {body: {handle, title: shop.title, kind: 'set', refs: {front: shop.images.slice(0, 1), back: [], detail: []}}});
+      railPut(r.product);
+    }
+    railOpen = handle;
+    railRender();
+    document.getElementById('railEditor')?.scrollIntoView({behavior: 'smooth'});
+  });
+}
+async function railEdit(handle, btn) {
+  await railDo(btn, '…', async () => {
+    if (!railShop || railShop.handle !== handle) await railLoadShop(handle);
+    railOpen = handle;
+    railRender();
+    document.getElementById('railEditor')?.scrollIntoView({behavior: 'smooth'});
+  });
+}
+
+async function railDo(btn, text, fn) {
+  const old = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = text; }
+  try { await fn(); } catch(e) { showToast(e.message, 'error'); }
+  finally { if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = old; } }
+}
+
+// ── editor ──
+function railRoleOf(p, url) {
+  for (const r of ['front', 'back', 'detail']) if ((p.refs[r] || []).includes(url)) return r;
+  return '';
+}
+function railEditorHtml(p) {
+  const imgs = (railShop && railShop.handle === p.handle) ? railShop.images : [];
+  const opt = (v, cur, label) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${label}</option>`;
+  const photos = imgs.map((u, i) => {
+    const role = railRoleOf(p, u);
+    const thumb = u + (u.includes('?') ? '&' : '?') + 'width=240';
+    return `<div class="rl-photo"><img src="${railEsc(thumb)}" loading="lazy">
+      <select class="rl-role" data-url="${railEsc(u)}">${opt('', role, 'not used')}${opt('front', role, 'FRONT')}${opt('back', role, 'BACK')}${opt('detail', role, 'detail')}</select></div>`;
+  }).join('');
+  return `<div class="rl-box" id="railEditor" style="border-color:var(--pink)">
+    <div class="rl-row" style="justify-content:space-between"><div><div class="rl-name" style="font-size:15px">${railEsc(p.title)}</div><div class="rl-meta">${railEsc(p.handle)}</div></div>
+      <button class="rl-btn" onclick="railOpen=null;railRender()">Close</button></div>
+
+    <div class="rl-sub">1 · Pick the photos to copy from</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Mark one clear FRONT photo and one clear BACK photo. Add a close-up as “detail” if the print or neckline is hard to see.</div>
+    <div class="rl-photos">${photos || '<div class="rl-meta">No photos loaded.</div>'}</div>
+
+    <div class="rl-sub">2 · Describe the garment</div>
+    <select id="rl-kind" class="rl-in" style="width:100%;margin-bottom:6px">
+      ${opt('set', p.kind, 'Set with bottom (kurta set, co-ord set)')}${opt('top', p.kind, 'Single top (shirt, tunic, kurti)')}${opt('dress', p.kind, 'Dress')}
+    </select>
+    <textarea id="rl-front" class="rl-in" placeholder="Front: colour, print and motif size, neckline/collar, buttons, sleeves, hem, length. For a set also describe the pants. e.g. Deep olive cotton shirt, small cream diamond block print, spread collar, full placket with olive buttons, 3/4 sleeves rolled with button tabs, curved hem, no pocket.">${railEsc(p.front_desc)}</textarea>
+    <textarea id="rl-back" class="rl-in" style="margin-top:6px;min-height:56px" placeholder="Back: what the back looks like. e.g. Plain back with a yoke seam, no buttons, no pocket.">${railEsc(p.back_desc)}</textarea>
+    <input id="rl-dup" class="rl-in" style="width:100%;margin-top:6px" placeholder="Dupatta (optional): colour, print, border" value="${railEsc(p.dupatta)}">
+    <label style="display:flex;gap:8px;align-items:center;font-size:12px;margin:8px 0;color:var(--muted)"><input type="checkbox" id="rl-cut" ${p.cutout ? 'checked' : ''}> Transparent background (untick for white or ivory garments, then set the website rail background to white)</label>
+    <button class="rl-btn wide" onclick="railSaveForm(false,this)">Save settings</button>
+
+    <div class="rl-sub">3 · Front photo</div>${railViewHtml(p, 'front')}
+    <div class="rl-sub">4 · Back photo</div>${railViewHtml(p, 'back')}
+
+    <div class="rl-sub">5 · Website rail</div>
+    ${p.published
+      ? `<div class="rl-meta" style="margin-bottom:8px">This product is LIVE on the rail. Approving a new photo updates it automatically.</div>
+         <button class="rl-btn red wide" onclick="railPublish('${railEsc(p.handle)}',false,this)">Remove from the rail</button>`
+      : `<button class="rl-btn green wide" onclick="railPublish('${railEsc(p.handle)}',true,this)" ${p.views.front.approved ? '' : 'disabled'}>Publish to the rail</button>
+         <div class="rl-meta" style="margin-top:6px">${p.views.front.approved ? 'Front photo approved — ready to publish.' : 'Approve the front photo first.'}</div>`}
+    <button class="rl-btn red" style="margin-top:14px" onclick="railDelete('${railEsc(p.handle)}',this)">Delete this product from the rail tool</button>
+  </div>`;
+}
+
+const RAIL_SLIDERS = [['bright', 'Brightness'], ['contrast', 'Contrast'], ['sat', 'Saturation'], ['warm', 'Warmth']];
+function railViewHtml(p, view) {
+  const v = p.views[view], h = railEsc(p.handle);
+  if (!v.cur) {
+    return `<div class="rl-empty">No ${view} photo yet</div>
+      <button class="rl-btn pink wide" onclick="railGenerate('${h}','${view}',this)">✨ Generate ${view} photo</button>
+      <div class="rl-meta" style="margin-top:6px">Takes 30–60 seconds. ${view === 'back' ? 'Built from the approved front.' : ''}</div>
+      <label class="rl-btn wide" style="display:block;text-align:center;margin-top:8px;cursor:pointer;box-sizing:border-box">Use a photo I made myself<input type="file" accept="image/*" hidden onchange="railImport('${h}','${view}',this)"></label>`;
+  }
+  const t = v.tweak || {};
+  const cands = v.cands.map(c => `<img class="rl-cand ${c.gen === v.cur ? 'sel' : ''}" data-rp="p/${h}/${view}/raw_${c.gen}.${c.ext}" data-w="160"
+    onclick="railSelect('${h}','${view}',${c.gen})">`).join('');
+  const sliders = RAIL_SLIDERS.map(([k, l]) => `<div class="rl-sl"><span>${l}</span>
+    <input type="range" min="-40" max="40" value="${t[k] || 0}" id="rl-${view}-${k}" oninput="this.nextElementSibling.textContent=this.value"><span>${t[k] || 0}</span></div>`).join('');
+  const st = v.status === 'approved' ? '<span class="rl-badge ok">Approved ✓ (live version)</span>' : '<span class="rl-badge draft">Draft — not on the website</span>';
+  return `<div class="rl-checker"><img data-rp="p/${h}/${view}/cur_final.webp" data-rv="${v.ver}"></div>
+    <div style="margin:8px 0">${st}</div>
+    <div class="rl-meta">Tap another try to compare:</div><div class="rl-cands">${cands}</div>
+    ${sliders}
+    <div class="rl-row" style="margin:8px 0">
+      <button class="rl-btn" style="flex:1" onclick="railTweak('${h}','${view}',this)">Apply colour changes</button>
+      <button class="rl-btn" onclick="railResetTweak('${h}','${view}',this)">Reset</button></div>
+    <div class="rl-row">
+      <button class="rl-btn" style="flex:1" onclick="railGenerate('${h}','${view}',this)">↻ Try another</button>
+      <button class="rl-btn green" style="flex:1" onclick="railApprove('${h}','${view}',this)">Approve ✓</button></div>
+    <label class="rl-btn wide" style="display:block;text-align:center;margin-top:8px;cursor:pointer;box-sizing:border-box">Use a photo I made myself<input type="file" accept="image/*" hidden onchange="railImport('${h}','${view}',this)"></label>
+    ${view === 'front' && v.status === 'approved' ? `<button class="rl-btn wide" style="margin-top:8px" onclick="railAnchor('${h}',this)">Use as style reference for new products</button>` : ''}`;
+}
+
+// ── actions ──
+async function railSaveForm(silent, btn) {
+  const p = railFind(railOpen); if (!p) return;
+  const refs = {front: [], back: [], detail: []};
+  document.querySelectorAll('#railEditor .rl-role').forEach(s => { if (s.value) refs[s.value].push(s.dataset.url); });
+  const body = {handle: p.handle, kind: document.getElementById('rl-kind').value,
+    front_desc: document.getElementById('rl-front').value, back_desc: document.getElementById('rl-back').value,
+    dupatta: document.getElementById('rl-dup').value, cutout: document.getElementById('rl-cut').checked, refs};
+  const run = async () => { railPut((await railCall('save', {body})).product); };
+  if (silent) { await run(); return; }
+  await railDo(btn, 'Saving…', async () => { await run(); showToast('Saved', 'success'); });
+}
+async function railGenerate(handle, view, btn) {
+  await railDo(btn, 'Generating… (30–60 s)', async () => {
+    await railSaveForm(true);
+    const r = await railCall('generate', {body: {handle, view}});
+    railPut(r.product); await railRefreshConfig(); railRender();
+    showToast('New ' + view + ' photo ready — check it carefully', 'success');
+  });
+}
+async function railRefreshConfig() { try { const d = await railCall('list'); railData.config = d.config; } catch(e) {} }
+async function railSelect(handle, view, gen) {
+  try { railPut((await railCall('select', {body: {handle, view, gen}})).product); railRender(); } catch(e) { showToast(e.message, 'error'); }
+}
+async function railTweak(handle, view, btn) {
+  const tweak = {};
+  RAIL_SLIDERS.forEach(([k]) => { tweak[k] = +document.getElementById(`rl-${view}-${k}`).value; });
+  await railDo(btn, 'Applying…', async () => { await railSaveForm(true); railPut((await railCall('tweak', {body: {handle, view, tweak}})).product); railRender(); });
+}
+async function railResetTweak(handle, view, btn) {
+  await railDo(btn, '…', async () => { railPut((await railCall('tweak', {body: {handle, view, tweak: {}}})).product); railRender(); });
+}
+async function railApprove(handle, view, btn) {
+  await railDo(btn, 'Approving…', async () => {
+    await railSaveForm(true);
+    railPut((await railCall('approve', {body: {handle, view}})).product); railRender();
+    showToast(view + ' approved', 'success');
+  });
+}
+async function railPublish(handle, published, btn) {
+  await railDo(btn, '…', async () => {
+    railPut((await railCall('publish', {body: {handle, published}})).product); railRender();
+    showToast(published ? 'Published to the rail (cached up to 1 min)' : 'Removed from the rail', 'success');
+  });
+}
+async function railMove(handle, dir, btn) {
+  await railDo(btn, '…', async () => { const d = await railCall('reorder', {body: {handle, dir}}); railData.products = d.products; railRender(); });
+}
+async function railAnchor(handle, btn) {
+  await railDo(btn, '…', async () => { await railCall('anchor', {body: {handle}}); railData.anchor = {handle}; railRender(); showToast('Style reference set', 'success'); });
+}
+function railReadFile(input) {
+  return new Promise((res, rej) => {
+    const f = input.files && input.files[0];
+    if (!f) return rej(new Error('No file chosen'));
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = () => rej(new Error('Could not read the file'));
+    r.readAsDataURL(f);
+  });
+}
+async function railUploadAnchor(input) {
+  try {
+    const image = await railReadFile(input);
+    showToast('Uploading…');
+    await railCall('anchor_upload', {body: {image}});
+    railData.anchor = {handle: 'uploaded image'}; railRender(); showToast('Style reference set', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+  input.value = '';
+}
+async function railImport(handle, view, input) {
+  try {
+    const image = await railReadFile(input);
+    showToast('Uploading…');
+    await railSaveForm(true);
+    railPut((await railCall('import', {body: {handle, view, image}})).product); railRender();
+    showToast('Photo added as a draft — review it, then approve', 'success');
+  } catch(e) { showToast(e.message, 'error'); }
+  input.value = '';
+}
+async function railDelete(handle, btn) {
+  if (!confirm('Delete this product from the rail tool? (It is also removed from the website rail.)')) return;
+  await railDo(btn, '…', async () => { const d = await railCall('delete', {body: {handle}}); railData.products = d.products; railOpen = null; railRender(); });
+}
+
 function showToast(msg, type='') {
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = `toast ${type} show`;
