@@ -1166,14 +1166,14 @@ function railRender() {
       h += `<div class="rl-prod">
         <div class="rl-thumb">${thumb}</div>
         <div class="rl-info"><div class="rl-name">${railEsc(p.title)}</div>
-          <div class="rl-meta">${p.published ? '<span class="rl-badge live">LIVE</span>' : ''}${badge(f, 'Front')}${badge(b, 'Back')}</div></div>
+          <div class="rl-meta">${p.published ? '<span class="rl-badge live">LIVE</span>' : ''}${badge(f, 'Front')}${badge(b, 'Back')}${badge(p.views.side || {}, 'Side')}</div></div>
         <div style="display:flex;gap:4px">
           ${p.published ? `<button class="rl-btn" onclick="railMove('${railEsc(p.handle)}',-1,this)">▲</button><button class="rl-btn" onclick="railMove('${railEsc(p.handle)}',1,this)">▼</button>` : ''}
           <button class="rl-btn" onclick="railEdit('${railEsc(p.handle)}',this)">${railOpen === p.handle ? 'Opened' : 'Open'}</button></div></div>`;
     });
     h += `</div>`;
   } else {
-    h += `<div class="rl-box rl-meta">No products${railFilter ? ' on this rail yet. Open a product and tick this rail in step 5.' : ' yet. Add one above.'}</div>`;
+    h += `<div class="rl-box rl-meta">No products${railFilter ? ' on this rail yet. Open a product and tick this rail in step 6.' : ' yet. Add one above.'}</div>`;
   }
   if (railOpen && railFind(railOpen)) h += railEditorHtml(railFind(railOpen));
   h += `<button class="refresh-btn" onclick="railRefresh()">↻ Refresh</button>`;
@@ -1271,8 +1271,11 @@ function railEditorHtml(p) {
 
     <div class="rl-sub">3 · Front photo</div>${railViewHtml(p, 'front')}
     <div class="rl-sub">4 · Back photo</div>${railViewHtml(p, 'back')}
+    <div class="rl-sub">5 · Rack photo (side view) — optional</div>
+    <div class="rl-meta" style="margin-bottom:6px">How the piece looks hanging on the rack, seen from the side. Visitors see this until they point at the piece, then it turns to face them. Skip it and the website turns the front photo sideways instead.</div>
+    ${p.views.front.approved ? railViewHtml(p, 'side') : '<div class="rl-meta">Approve the front photo first.</div>'}
 
-    <div class="rl-sub">5 · Which rails should it appear on?</div>
+    <div class="rl-sub">6 · Which rails should it appear on?</div>
     ${((railData.rails || []).map(r => `<label class="rl-cb"><input type="checkbox" class="rl-rail" value="${railEsc(r.id)}" ${(p.rails || []).includes(r.id) ? 'checked' : ''} onchange="railSaveForm(true)"> ${railEsc(r.name)}</label>`).join('')) || '<div class="rl-meta">No rails yet.</div>'}
     <div class="rl-meta" style="margin:4px 0 10px">Ticked rails update live (if the product is published). With none ticked it only shows on a rail that has no rail name set.</div>
     <div class="rl-sub">Publish</div>
@@ -1287,11 +1290,11 @@ function railEditorHtml(p) {
 
 const RAIL_SLIDERS = [['bright', 'Brightness'], ['contrast', 'Contrast'], ['sat', 'Saturation'], ['warm', 'Warmth']];
 function railViewHtml(p, view) {
-  const v = p.views[view], h = railEsc(p.handle);
+  const v = p.views[view] || {cur: 0, cands: [], tweak: {}, ver: 0, status: 'none', approved: null}, h = railEsc(p.handle);
   if (!v.cur) {
     return `<div class="rl-empty">No ${view} photo yet</div>
       <button class="rl-btn pink wide" onclick="railGenerate('${h}','${view}',this)">✨ Generate ${view} photo</button>
-      <div class="rl-meta" style="margin-top:6px">Takes 30–60 seconds. ${view === 'back' ? 'Built from the approved front.' : ''}</div>
+      <div class="rl-meta" style="margin-top:6px">Takes 30–60 seconds. ${view !== 'front' ? 'Built from the approved front.' : ''}</div>
       <label class="rl-btn wide" style="display:block;text-align:center;margin-top:8px;cursor:pointer;box-sizing:border-box">Use a photo I made myself<input type="file" accept="image/*" hidden onchange="railImport('${h}','${view}',this)"></label>`;
   }
   const t = v.tweak || {};
@@ -1365,7 +1368,7 @@ async function railMove(handle, dir, btn) {
 }
 async function railNewRailGo(btn) {
   const name = document.getElementById('railNewRail').value.trim(); if (!name) { showToast('Type a rail name', 'error'); return; }
-  await railDo(btn, '…', async () => { const d = await railCall('rail_save', {body: {name}}); railData.rails = d.rails; railRender(); showToast('Rail created — tick it on products in step 5', 'success'); });
+  await railDo(btn, '…', async () => { const d = await railCall('rail_save', {body: {name}}); railData.rails = d.rails; railRender(); showToast('Rail created — tick it on products in step 6', 'success'); });
 }
 async function railRenameRail(id, btn) {
   const cur = (railData.rails.find(r => r.id === id) || {}).name || '';
