@@ -16,7 +16,7 @@ function checkAuth() {
 }
 function saveAuth() { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ts: Date.now()})); }
 function showPinScreen() { document.getElementById('pinScreen').style.display='flex'; document.getElementById('app').style.display='none'; setTimeout(()=>document.getElementById('pinInput').focus(),100); }
-function showApp() { document.getElementById('pinScreen').style.display='none'; document.getElementById('app').style.display='block'; try { if (localStorage.getItem('ekisha_tab') === 'rail') showMainTab('rail'); } catch (e) {} }
+function showApp() { document.getElementById('pinScreen').style.display='none'; document.getElementById('app').style.display='block'; try { const t = localStorage.getItem('ekisha_tab'); if (t === 'rail' || t === 'promo') showMainTab(t); } catch (e) {} }
 function submitPin() {
   const entered = document.getElementById('pinInput').value;
   if (entered === CORRECT_PIN) { saveAuth(); showApp(); loadStatus(); }
@@ -196,6 +196,22 @@ body.rail-mode .header{background:#2b221b}
 .rl-err{color:var(--red);font-size:12px;padding:8px 0}
 .rl-cfg{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px}
 .rl-spin{position:absolute;inset:0;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted)}
+/* ── grid promos ── */
+#promoTab{background:#faf6ef;min-height:70vh}
+.pm-tile{border-radius:10px;overflow:hidden;display:flex;flex-direction:column;aspect-ratio:3/4.4;text-decoration:none;color:#1a1a1a;margin-bottom:6px}
+.pm-tile .m{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px 8px 0}
+.pm-tile .m img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 8px 10px rgba(0,0,0,.12))}
+.pm-tile .b{padding:6px 8px 9px;font-size:10px}
+.pm-tile .b .e{color:#dc305f;font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:8px}
+.pm-tile .b .t{font-weight:700;text-transform:uppercase;font-size:12px;line-height:1.15}
+.pm-tile .b .c{font-weight:600;border-bottom:1px solid;display:inline-block;margin-top:4px}
+.pm-pick{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px}
+.pm-pick img{width:64px;height:80px;object-fit:contain;border-radius:8px;border:2px solid var(--border);background:#f1eee8;cursor:pointer;flex-shrink:0}
+.pm-pick img.sel{border-color:var(--pink)}
+.pm-cols{max-height:180px;overflow:auto;border:1.5px solid var(--border);border-radius:8px;padding:4px 10px;background:#fff}
+.pm-tab td,.pm-tab th{font-size:11px}
+.pm-thumb{width:30px;height:38px;object-fit:contain;border-radius:4px;background:#f1eee8;vertical-align:middle;margin-right:6px}
+.pm-off{opacity:.45}
 </style>
 </head>
 <body>
@@ -218,7 +234,7 @@ body.rail-mode .header{background:#2b221b}
 <div class="header">
   <h1 id="hdrTitle">Ekisha Budget Control</h1>
   <div class="sub"><span class="dot"></span><span id="headerTime">Loading...</span></div>
-  <div class="maintabs"><button id="mtAds" class="on" onclick="showMainTab('ads')">Ads &amp; budget</button><button id="mtRail" onclick="showMainTab('rail')">👗 Clothing rail</button></div>
+  <div class="maintabs"><button id="mtAds" class="on" onclick="showMainTab('ads')">Ads &amp; budget</button><button id="mtRail" onclick="showMainTab('rail')">👗 Clothing rail</button><button id="mtPromo" onclick="showMainTab('promo')">🧩 Grid promos</button></div>
 </div>
 <div class="body" id="adsTab">
   <div id="loadingState" class="loading"><div class="spinner"></div>Connecting to Meta...</div>
@@ -275,6 +291,9 @@ body.rail-mode .header{background:#2b221b}
 </div>
 <div class="body" id="railTab" style="display:none">
   <div id="railWrap"></div>
+</div>
+<div class="body" id="promoTab" style="display:none">
+  <div id="promoWrap"></div>
 </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -1053,15 +1072,18 @@ function railHydrate() {
 
 // ── key gate + loading ──
 function showMainTab(t) {
-  const rail = t === 'rail';
-  document.getElementById('adsTab').style.display = rail ? 'none' : '';
-  document.getElementById('railTab').style.display = rail ? '' : 'none';
-  document.body.classList.toggle('rail-mode', rail);
-  document.getElementById('mtAds').classList.toggle('on', !rail);
-  document.getElementById('mtRail').classList.toggle('on', rail);
-  document.getElementById('hdrTitle').textContent = rail ? 'Ekisha Clothing Rail' : 'Ekisha Budget Control';
+  const tabs = {ads: ['adsTab', 'mtAds', 'Ekisha Budget Control'], rail: ['railTab', 'mtRail', 'Ekisha Clothing Rail'], promo: ['promoTab', 'mtPromo', 'Ekisha Grid Promos']};
+  if (!tabs[t]) t = 'ads';
+  Object.keys(tabs).forEach(k => {
+    document.getElementById(tabs[k][0]).style.display = k === t ? '' : 'none';
+    document.getElementById(tabs[k][1]).classList.toggle('on', k === t);
+  });
+  document.body.classList.toggle('rail-mode', t !== 'ads');
+  document.getElementById('hdrTitle').textContent = tabs[t][2];
   try { localStorage.setItem('ekisha_tab', t); } catch (e) {}
-  if (rail && document.getElementById('app').style.display !== 'none') railInit();
+  const visible = document.getElementById('app').style.display !== 'none';
+  if (t === 'rail' && visible) railInit();
+  if (t === 'promo' && visible) promoInit();
   window.scrollTo(0, 0);
 }
 function railPreview(view) {
@@ -1166,7 +1188,7 @@ function railRender() {
       h += `<div class="rl-prod">
         <div class="rl-thumb">${thumb}</div>
         <div class="rl-info"><div class="rl-name">${railEsc(p.title)}</div>
-          <div class="rl-meta">${p.published ? '<span class="rl-badge live">LIVE</span>' : ''}${badge(f, 'Front')}${badge(b, 'Back')}${badge(p.views.side || {}, 'Side')}${badge(p.views.t60 || {}, '60°')}${badge(p.views.t30 || {}, '30°')}</div></div>
+          <div class="rl-meta">${p.published ? '<span class="rl-badge live">LIVE</span>' : ''}${badge(f, 'Front')}${badge(b, 'Back')}${badge(p.views.side || {}, 'Side')}${badge(p.views.t60 || {}, '60°')}${badge(p.views.t30 || {}, '30°')}${badge(p.views.ghost || {}, 'Ghost')}</div></div>
         <div style="display:flex;gap:4px">
           ${p.published ? `<button class="rl-btn" onclick="railMove('${railEsc(p.handle)}',-1,this)">▲</button><button class="rl-btn" onclick="railMove('${railEsc(p.handle)}',1,this)">▼</button>` : ''}
           <button class="rl-btn" onclick="railEdit('${railEsc(p.handle)}',this)">${railOpen === p.handle ? 'Opened' : 'Open'}</button></div></div>`;
@@ -1286,6 +1308,13 @@ function railEditorHtml(p) {
       <div class="rl-sub">Turning (30°)</div>${railViewHtml(p, 't30')}`
       : '<div class="rl-meta">Approve the front photo first.</div>'}
 
+    <div class="rl-sub">Ghost 3D photo — for category tiles and grid promos</div>
+    <div class="rl-meta" style="margin-bottom:8px">The garment as if worn by an invisible body: full 3D shape, model removed, the inside of the back neckline showing, light creases. Made from the FRONT photo in step 1 (no hanger photos needed). After you approve one, it becomes the style reference for the next, so the whole series matches. Approved ghost photos appear in Grid promos → Photo library.</div>
+    <div class="rl-row" style="margin-bottom:6px"><span class="rl-meta" style="white-space:nowrap">Volume</span>
+      <select id="rl-gvol" class="rl-in">${opt('subtle', p.ghost_volume || 'medium', 'Subtle — lightly worn')}${opt('medium', p.ghost_volume || 'medium', 'Medium — full worn shape')}${opt('full', p.ghost_volume || 'medium', 'Full — airy, puffed 3D (Snitch look)')}</select></div>
+    <input id="rl-gnotes" class="rl-in" style="width:100%;margin-bottom:8px" placeholder="Extra instructions (optional), e.g. sleeves rolled to the elbow" value="${railEsc(p.ghost_notes || '')}">
+    ${railViewHtml(p, 'ghost')}
+
     <div class="rl-sub">6 · Which rails should it appear on?</div>
     ${((railData.rails || []).map(r => `<label class="rl-cb"><input type="checkbox" class="rl-rail" value="${railEsc(r.id)}" ${(p.rails || []).includes(r.id) ? 'checked' : ''} onchange="railSaveForm(true)"> ${railEsc(r.name)}</label>`).join('')) || '<div class="rl-meta">No rails yet.</div>'}
     <div class="rl-meta" style="margin:4px 0 10px">Ticked rails update live (if the product is published). With none ticked it only shows on a rail that has no rail name set.</div>
@@ -1305,7 +1334,7 @@ function railViewHtml(p, view) {
   if (!v.cur) {
     return `<div class="rl-empty">No ${view} photo yet</div>
       <button class="rl-btn pink wide" onclick="railGenerate('${h}','${view}',this)">✨ Generate ${view} photo</button>
-      <div class="rl-meta" style="margin-top:6px">Takes 30–60 seconds. ${view !== 'front' ? 'Built from the approved front.' : ''}</div>
+      <div class="rl-meta" style="margin-top:6px">Takes 30–60 seconds. ${view === 'ghost' ? 'Made from the FRONT product photo.' : view !== 'front' ? 'Built from the approved front.' : ''}</div>
       <label class="rl-btn wide" style="display:block;text-align:center;margin-top:8px;cursor:pointer;box-sizing:border-box">Use a photo I made myself<input type="file" accept="image/*" hidden onchange="railImport('${h}','${view}',this)"></label>`;
   }
   const t = v.tweak || {};
@@ -1336,6 +1365,7 @@ async function railSaveForm(silent, btn) {
   const body = {handle: p.handle, kind: document.getElementById('rl-kind').value,
     front_desc: document.getElementById('rl-front').value, back_desc: document.getElementById('rl-back').value,
     dupatta: document.getElementById('rl-dup').value, cutout: document.getElementById('rl-cut').checked, bg: document.getElementById('rl-bg').value, refs,
+    ghost_volume: (document.getElementById('rl-gvol') || {}).value || 'medium', ghost_notes: (document.getElementById('rl-gnotes') || {}).value || '',
     rails: [...document.querySelectorAll('#railEditor .rl-rail:checked')].map(x => x.value)};
   const run = async () => { railPut((await railCall('save', {body})).product); };
   if (silent) { await run(); return; }
@@ -1444,6 +1474,239 @@ async function railImport(handle, view, input) {
 async function railDelete(handle, btn) {
   if (!confirm('Delete this product from the rail tool? (It is also removed from the website rail.)')) return;
   await railDo(btn, '…', async () => { const d = await railCall('delete', {body: {handle}}); railData.products = d.products; railOpen = null; railRender(); });
+}
+
+// ── GRID PROMOS (tiles between products on collection pages) ──
+let promoData = null;          // {tiles, slots, settings, stock, perf, public_url}
+let promoCols = null;          // store collections [{handle,title,count}]
+let promoView = 'perf';        // perf | tiles | slots | library | settings
+let promoDays = 7;
+let promoForm = null;          // {kind:'tile'|'slot', item:{...}}
+let promoLib = null;           // approved photos from the rail tool
+
+function promoSet(html) { const w = document.getElementById('promoWrap'); if (w) w.innerHTML = html; }
+function promoInit() {
+  if (!railKey) {
+    promoSet(`<div class="rl-box"><div class="rl-sub">Rail key</div><div class="rl-meta" style="margin-bottom:8px">Grid promos use the same key as the clothing rail.</div>
+      <div class="rl-row"><input id="promoKeyIn" class="rl-in" type="password" placeholder="Rail key"><button class="rl-btn pink" onclick="railKey=document.getElementById('promoKeyIn').value.trim();try{localStorage.setItem('ekisha_rail_key',railKey)}catch(e){};promoInit()">Save</button></div></div>`);
+    return;
+  }
+  promoLoad();
+}
+async function promoLoad(rollup) {
+  if (!promoData) promoSet('<div class="metrics-loading"><div class="metrics-spinner"></div>Loading…</div>');
+  try {
+    const d = await railCall(rollup ? 'promo_rollup' : 'promo_list', {q: {days: promoDays}});
+    promoData = d.promos;
+    if (rollup) showToast(d.merged ? 'Numbers updated' : 'Numbers are up to date', 'success');
+    if (!promoCols) railCall('promo_collections').then(r => { promoCols = r.collections; promoRender(); }).catch(() => {});
+    if (!promoLib) promoLoadLib();
+    promoRender();
+  } catch (e) {
+    if (/Wrong key|HTTP 401/.test(e.message)) { railKey = ''; promoInit(); return; }
+    promoSet(`<div class="rl-err">${railEsc(e.message)}</div><button class="rl-btn" onclick="promoLoad()">↻ Retry</button>`);
+  }
+}
+async function promoLoadLib() {
+  try {
+    const d = railData || await railCall('list');
+    if (!railData) railData = d;
+    const out = [];
+    (d.products || []).forEach(p => {
+      const g = p.views.ghost && p.views.ghost.approved, f = p.views.front && p.views.front.approved;
+      if (g) out.push({kind: 'Ghost 3D', title: p.title, handle: p.handle, url: g.final, thumb: g.thumb});
+      if (f) out.push({kind: 'Hanger', title: p.title, handle: p.handle, url: f.final, thumb: f.thumb});
+    });
+    out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'Ghost 3D' ? -1 : 1));
+    promoLib = out;
+    promoRender();
+  } catch (e) { promoLib = []; }
+}
+function promoTileById(id) { return (promoData.tiles || []).find(t => t.id === id); }
+function promoColTitle(h) { const c = (promoCols || []).find(x => x.handle === h); return c ? c.title : h; }
+function promoTileCard(t, small) {
+  return `<div class="pm-tile ${t.on === false ? 'pm-off' : ''}" style="background:${railEsc(t.bg || '#f3efe9')}${small ? ';aspect-ratio:3/4' : ''}">
+    <div class="m">${t.image ? `<img src="${railEsc(t.image)}" loading="lazy">` : '<span class="rl-meta">no image</span>'}</div>
+    <div class="b">${t.eyebrow ? `<div class="e">${railEsc(t.eyebrow)}</div>` : ''}<div class="t">${railEsc(t.title || '')}</div><span class="c">${railEsc(t.cta || 'Shop now')} →</span></div></div>`;
+}
+
+function promoRender() {
+  if (!promoData) return;
+  const d = promoData;
+  const tabs = [['perf', '📈 Performance'], ['tiles', 'Tiles'], ['slots', 'Placements'], ['library', 'Photo library'], ['settings', 'Settings']];
+  let h = `<div class="rl-cfg">${(d.tiles || []).length} tile${(d.tiles || []).length === 1 ? '' : 's'} · ${(d.slots || []).length} placement${(d.slots || []).length === 1 ? '' : 's'} · the website reads <a href="${railEsc(d.public_url)}" target="_blank" style="color:var(--muted)">promos.json</a> (updates within ~2 min)</div>
+    <div class="rl-chips">${tabs.map(([k, l]) => `<span class="rl-chip ${promoView === k ? 'on' : ''}" onclick="promoView='${k}';promoForm=null;promoRender()">${l}</span>`).join('')}</div>`;
+  if (promoView === 'perf') h += promoPerfHtml();
+  else if (promoView === 'tiles') h += promoTilesHtml();
+  else if (promoView === 'slots') h += promoSlotsHtml();
+  else if (promoView === 'library') h += promoLibHtml();
+  else h += promoSettingsHtml();
+  promoSet(h);
+}
+
+function promoPerfHtml() {
+  const d = promoData;
+  let h = `<div class="period-tabs">${[1, 7, 30].map(n => `<button class="period-btn ${promoDays === n ? 'active' : ''}" onclick="promoDays=${n};promoLoad()">${n === 1 ? 'Today' : n + ' days'}</button>`).join('')}
+    <button class="period-btn" onclick="promoLoad(true)">↻ Update now</button></div>
+    <div class="rl-meta" style="margin-bottom:10px">Views = tile at least half on screen. Add to cart = within 24 h of clicking the tile. “Shown now” is how often each tile wins its spot right now; the better click rate gets shown more, the others keep being tested. Numbers update every 30 min (or press Update now).</div>`;
+  if (!(d.slots || []).length) return h + `<div class="rl-box rl-meta">No placements yet. Make a tile first (Tiles), then a placement (Placements).</div>`;
+  const perf = d.perf || [];
+  d.slots.forEach(sl => {
+    const pf = perf.find(x => x.slot === sl.id) || {rows: []};
+    const where = (sl.show_on || []).includes('*') ? 'all collections' : (sl.show_on || []).map(promoColTitle).join(', ');
+    h += `<div class="rl-box ${sl.on === false ? 'pm-off' : ''}"><div class="rl-row" style="justify-content:space-between"><div><div class="rl-name">${railEsc(sl.name)}</div>
+      <div class="rl-meta">after product ${sl.pos} · ${sl.layout === 'wide' ? 'full-width banner' : 'card'} · ${railEsc(where)}${sl.on === false ? ' · OFF' : ''}</div></div>
+      ${pf.winner ? `<span class="rl-badge ok">Winner: ${railEsc((promoTileById(pf.winner) || {}).title || pf.winner)}</span>` : ''}</div>
+      <div class="adset-scroll" style="margin-top:8px"><table class="adset-table pm-tab" style="min-width:420px"><thead><tr><th>Tile</th><th>Views</th><th>Clicks</th><th>CTR</th><th>Add to cart</th><th>Shown now</th></tr></thead><tbody>
+      ${pf.rows.map(r => { const t = promoTileById(r.tile) || {};
+        return `<tr><td><img class="pm-thumb" src="${railEsc(t.image || '')}">${railEsc(t.title || r.tile)}</td><td>${r.views}</td><td>${r.clicks}</td>
+        <td class="${r.ctr === null ? '' : r.ctr >= 3 ? 'good-cell' : r.ctr < 1 && r.views > 300 ? 'bad-cell' : ''}">${r.ctr === null ? '—' : r.ctr + '%'}</td><td>${r.atc}</td><td>${r.share}%</td></tr>
+        ${r.by_col.length > 1 ? `<tr><td colspan="6" style="white-space:normal;color:var(--muted)">On: ${r.by_col.map(c => `${railEsc(promoColTitle(c.c))} ${c.v}/${c.k}`).join(' · ')} <span style="opacity:.7">(views/clicks)</span></td></tr>` : ''}`; }).join('')}
+      </tbody></table></div>
+      ${pf.rows.some(r => r.views < 1000) && pf.rows.length > 1 ? '<div class="rl-meta" style="margin-top:6px">Under ~1,000 views per tile the difference is mostly luck — let it run.</div>' : ''}</div>`;
+  });
+  return h;
+}
+
+function promoTilesHtml() {
+  const d = promoData;
+  if (promoForm && promoForm.kind === 'tile') return promoTileFormHtml();
+  let h = `<button class="rl-btn pink wide" style="margin-bottom:10px" onclick="promoNewTile()">+ New tile</button>`;
+  if (!(d.tiles || []).length) return h + `<div class="rl-box rl-meta">No tiles yet. A tile is one picture + text that links to a collection.</div>`;
+  h += `<div class="rl-grid">` + d.tiles.map(t => {
+    const sk = (d.stock || {})[t.target];
+    const low = sk && sk.n < (d.settings.min_stock || 0);
+    return `<div class="rl-card">${promoTileCard(t)}
+      <div class="rl-meta">→ ${railEsc(promoColTitle(t.target))}${sk ? ` · ${sk.n} in stock` : ''}</div>
+      ${low ? '<div class="rl-meta" style="color:var(--red)">Hidden: too few in stock</div>' : ''}
+      <div class="rl-row" style="margin-top:6px"><button class="rl-btn" style="flex:1" onclick="promoEditTile('${railEsc(t.id)}')">Edit</button>
+      <button class="rl-btn" onclick="promoToggleTile('${railEsc(t.id)}',this)">${t.on === false ? 'Turn on' : 'Turn off'}</button></div></div>`;
+  }).join('') + `</div>`;
+  return h;
+}
+function promoNewTile(img) { promoForm = {kind: 'tile', item: {image: img || '', title: '', eyebrow: '', cta: 'Shop now', target: '', bg: '#f3efe9', on: true}}; promoView = 'tiles'; promoRender(); window.scrollTo(0, 0); }
+function promoEditTile(id) { promoForm = {kind: 'tile', item: Object.assign({}, promoTileById(id))}; promoRender(); window.scrollTo(0, 0); }
+function promoTileFormHtml() {
+  const t = promoForm.item;
+  const lib = (promoLib || []).map(x => `<img src="${railEsc(x.thumb)}" title="${railEsc(x.kind + ': ' + x.title)}" class="${t.image === x.url ? 'sel' : ''}" onclick="promoForm.item.image='${railEsc(x.url)}';document.querySelectorAll('.pm-pick img').forEach(i=>i.classList.toggle('sel',i===this));promoPreview()">`).join('');
+  const cols = (promoCols || []).map(c => `<option value="${railEsc(c.handle)}" ${c.handle === t.target ? 'selected' : ''}>${railEsc(c.title)}${c.count != null ? ' (' + c.count + ')' : ''}</option>`).join('');
+  return `<div class="rl-box" style="border-color:var(--pink)">
+    <div class="rl-row" style="justify-content:space-between"><div class="rl-name">${t.id ? 'Edit tile' : 'New tile'}</div><button class="rl-btn" onclick="promoForm=null;promoRender()">Close</button></div>
+    <div style="display:grid;grid-template-columns:120px 1fr;gap:12px;margin-top:10px">
+      <div><div id="pmPreview">${promoTileCard(t, true)}</div><div class="rl-meta" style="text-align:center">preview</div></div>
+      <div>
+        <div class="rl-sub">Picture</div>
+        <div class="pm-pick">${lib || '<span class="rl-meta">No approved photos yet. Make a Ghost 3D photo in Clothing rail → open a product.</span>'}</div>
+        <label class="rl-btn" style="display:inline-block;cursor:pointer">Upload a picture<input type="file" accept="image/*" hidden onchange="promoUpload(this)"></label>
+      </div></div>
+    <div class="rl-sub">Opens collection</div>
+    <select id="pmTarget" class="rl-in" style="width:100%" onchange="promoForm.item.target=this.value">${promoCols ? '<option value="">Choose…</option>' + cols : '<option>Loading…</option>'}</select>
+    <div class="rl-sub">Text</div>
+    <input class="rl-in" style="width:100%;margin-bottom:6px" placeholder="Small label (optional), e.g. NEW IN" value="${railEsc(t.eyebrow)}" oninput="promoForm.item.eyebrow=this.value;promoPreview()">
+    <input class="rl-in" style="width:100%;margin-bottom:6px" placeholder="Title, e.g. Kurta sets" value="${railEsc(t.title)}" oninput="promoForm.item.title=this.value;promoPreview()">
+    <input class="rl-in" style="width:100%;margin-bottom:6px" placeholder="Button text" value="${railEsc(t.cta)}" oninput="promoForm.item.cta=this.value;promoPreview()">
+    <div class="rl-row"><span class="rl-meta">Background</span><input type="color" value="${railEsc(t.bg || '#f3efe9')}" oninput="promoForm.item.bg=this.value;promoPreview()">
+      ${['#f3efe9', '#f6e3e7', '#e7eef0', '#eef0e6', '#ffffff'].map(c => `<span onclick="promoForm.item.bg='${c}';promoPreview()" style="width:22px;height:22px;border-radius:50%;background:${c};border:1.5px solid var(--border);cursor:pointer;display:inline-block"></span>`).join('')}</div>
+    <button class="rl-btn pink wide" style="margin-top:12px" onclick="promoSaveTile(this)">Save tile</button>
+    ${t.id ? `<button class="rl-btn red" style="margin-top:10px" onclick="promoDeleteTile('${railEsc(t.id)}',this)">Delete tile</button>` : ''}
+  </div>`;
+}
+function promoPreview() { const el = document.getElementById('pmPreview'); if (el && promoForm) el.innerHTML = promoTileCard(promoForm.item, true); }
+async function promoUpload(input) {
+  try {
+    const image = await railReadFile(input); showToast('Uploading…');
+    const r = await railCall('promo_upload', {body: {image}});
+    promoForm.item.image = r.url; promoPreview(); showToast('Picture uploaded', 'success');
+  } catch (e) { showToast(e.message, 'error'); }
+  input.value = '';
+}
+async function promoSaveTile(btn) {
+  const t = promoForm.item;
+  t.target = document.getElementById('pmTarget').value || t.target;
+  await railDo(btn, 'Saving…', async () => {
+    promoData = (await railCall('promo_tile', {body: t})).promos; promoForm = null; promoRender();
+    showToast('Tile saved — add it to a placement to show it', 'success');
+  });
+}
+async function promoToggleTile(id, btn) {
+  const t = Object.assign({}, promoTileById(id), {on: promoTileById(id).on === false});
+  await railDo(btn, '…', async () => { promoData = (await railCall('promo_tile', {body: t})).promos; promoRender(); });
+}
+async function promoDeleteTile(id, btn) {
+  if (!confirm('Delete this tile? It is removed from every placement.')) return;
+  await railDo(btn, '…', async () => { promoData = (await railCall('promo_tile_delete', {body: {id}})).promos; promoForm = null; promoRender(); });
+}
+
+function promoSlotsHtml() {
+  const d = promoData;
+  if (promoForm && promoForm.kind === 'slot') return promoSlotFormHtml();
+  let h = `<button class="rl-btn pink wide" style="margin-bottom:10px" onclick="promoForm={kind:'slot',item:{name:'',pos:8,layout:'card',show_on:['*'],tiles:[],on:true}};promoRender()">+ New placement</button>
+    <div class="rl-meta" style="margin-bottom:10px">A placement is a spot in the product grid, e.g. after product 8. Give it 2–3 tiles and the website learns which gets more clicks. A tile never shows on the collection it links to.</div>`;
+  if (!(d.slots || []).length) return h + `<div class="rl-box rl-meta">No placements yet.</div>`;
+  h += `<div class="rl-box">` + d.slots.map(sl => `<div class="rl-prod ${sl.on === false ? 'pm-off' : ''}">
+      <div class="rl-thumb">${(promoTileById(sl.tiles[0]) || {}).image ? `<img src="${railEsc(promoTileById(sl.tiles[0]).image)}">` : '—'}</div>
+      <div class="rl-info"><div class="rl-name">${railEsc(sl.name)}</div><div class="rl-meta">after product ${sl.pos} · ${sl.layout === 'wide' ? 'banner' : 'card'} · ${sl.tiles.length} tile${sl.tiles.length > 1 ? 's' : ''} · ${(sl.show_on || []).includes('*') ? 'all collections' : sl.show_on.length + ' collections'}${sl.on === false ? ' · OFF' : ''}</div></div>
+      <button class="rl-btn" onclick="promoForm={kind:'slot',item:JSON.parse(JSON.stringify(promoData.slots.find(x=>x.id==='${railEsc(sl.id)}')))};promoRender()">Edit</button></div>`).join('') + `</div>`;
+  return h;
+}
+function promoSlotFormHtml() {
+  const sl = promoForm.item, all = (sl.show_on || []).includes('*');
+  const tiles = (promoData.tiles || []).map(t => `<label class="rl-cb"><input type="checkbox" class="pm-slot-tile" value="${railEsc(t.id)}" ${sl.tiles.includes(t.id) ? 'checked' : ''}>
+    <img class="pm-thumb" src="${railEsc(t.image)}"> ${railEsc(t.title || t.id)} <span class="rl-meta">→ ${railEsc(promoColTitle(t.target))}${t.on === false ? ' (off)' : ''}</span></label>`).join('');
+  const cols = (promoCols || []).map(c => `<label class="rl-cb"><input type="checkbox" class="pm-slot-col" value="${railEsc(c.handle)}" ${!all && sl.show_on.includes(c.handle) ? 'checked' : ''}> ${railEsc(c.title)}</label>`).join('');
+  return `<div class="rl-box" style="border-color:var(--pink)">
+    <div class="rl-row" style="justify-content:space-between"><div class="rl-name">${sl.id ? 'Edit placement' : 'New placement'}</div><button class="rl-btn" onclick="promoForm=null;promoRender()">Close</button></div>
+    <div class="rl-sub">Name (for you)</div><input id="pmName" class="rl-in" style="width:100%" value="${railEsc(sl.name)}" placeholder="e.g. Cross-sell after 8">
+    <div class="rl-sub">Where in the grid</div>
+    <div class="rl-row"><span class="rl-meta">After product</span><input id="pmPos" class="rl-in" type="number" min="1" max="200" value="${sl.pos}" style="max-width:90px">
+      <select id="pmLayout" class="rl-in"><option value="card" ${sl.layout !== 'wide' ? 'selected' : ''}>Card — same size as a product</option><option value="wide" ${sl.layout === 'wide' ? 'selected' : ''}>Banner — a full row</option></select></div>
+    <div class="rl-meta" style="margin-top:4px">Tip: keep the first 6 products clean. Banners start a new row automatically.</div>
+    <div class="rl-sub">Show on</div>
+    <label class="rl-cb"><input type="checkbox" id="pmAll" ${all ? 'checked' : ''} onchange="document.getElementById('pmColsBox').style.display=this.checked?'none':''"> All collections</label>
+    <div id="pmColsBox" class="pm-cols" style="${all ? 'display:none' : ''}">${cols || '<span class="rl-meta">Loading collections…</span>'}</div>
+    <div class="rl-sub">Tiles to try here</div>
+    ${tiles || '<div class="rl-meta">Make a tile first.</div>'}
+    <label class="rl-cb" style="margin-top:8px"><input type="checkbox" id="pmOn" ${sl.on !== false ? 'checked' : ''}> Placement is on</label>
+    <button class="rl-btn pink wide" style="margin-top:10px" onclick="promoSaveSlot(this)">Save placement</button>
+    ${sl.id ? `<button class="rl-btn red" style="margin-top:10px" onclick="promoDeleteSlot('${railEsc(sl.id)}',this)">Delete placement</button>` : ''}
+  </div>`;
+}
+async function promoSaveSlot(btn) {
+  const sl = promoForm.item;
+  const body = {id: sl.id, name: document.getElementById('pmName').value, pos: +document.getElementById('pmPos').value,
+    layout: document.getElementById('pmLayout').value, on: document.getElementById('pmOn').checked,
+    show_on: document.getElementById('pmAll').checked ? ['*'] : [...document.querySelectorAll('.pm-slot-col:checked')].map(x => x.value),
+    tiles: [...document.querySelectorAll('.pm-slot-tile:checked')].map(x => x.value)};
+  await railDo(btn, 'Saving…', async () => { promoData = (await railCall('promo_slot', {body})).promos; promoForm = null; promoRender(); showToast('Placement saved — live within ~2 min', 'success'); });
+}
+async function promoDeleteSlot(id, btn) {
+  if (!confirm('Delete this placement? Its numbers stay in the history.')) return;
+  await railDo(btn, '…', async () => { promoData = (await railCall('promo_slot_delete', {body: {id}})).promos; promoForm = null; promoRender(); });
+}
+
+function promoLibHtml() {
+  if (!promoLib) return `<div class="metrics-loading"><div class="metrics-spinner"></div>Loading photos…</div>`;
+  let h = `<div class="rl-meta" style="margin-bottom:10px">Approved photos from the Clothing rail tool. Make Ghost 3D photos there (open a product → Ghost 3D photo). “Copy link” is for the Shopify “Ekisha category tiles” section (paste into “…or paste an image link”).</div>`;
+  if (!promoLib.length) return h + `<div class="rl-box rl-meta">No approved photos yet.</div>`;
+  return h + `<div class="rl-grid">` + promoLib.map(x => `<div class="rl-card"><div class="rl-checker" style="aspect-ratio:4/5"><img src="${railEsc(x.thumb)}" loading="lazy"></div>
+    <div class="rl-name" style="margin-top:6px">${railEsc(x.title)}</div><div class="rl-meta">${x.kind}</div>
+    <div class="rl-row" style="margin-top:6px"><button class="rl-btn" style="flex:1" onclick="promoCopy('${railEsc(x.url)}')">Copy link</button>
+    <button class="rl-btn pink" onclick="promoNewTile('${railEsc(x.url)}')">Make tile</button></div></div>`).join('') + `</div>
+    <button class="refresh-btn" style="margin-top:10px" onclick="railData=null;promoLib=null;promoRender();promoLoadLib()">↻ Refresh photos</button>`;
+}
+function promoCopy(url) {
+  const done = () => showToast('Link copied', 'success');
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => prompt('Copy this link:', url)); else prompt('Copy this link:', url);
+}
+function promoSettingsHtml() {
+  const s = promoData.settings || {};
+  return `<div class="rl-box"><div class="rl-sub">Hide a tile when its collection is nearly sold out</div>
+    <div class="rl-row"><span class="rl-meta">Fewer than</span><input id="pmMin" class="rl-in" type="number" min="0" max="50" value="${s.min_stock ?? 4}" style="max-width:90px"><span class="rl-meta">products in stock → hide</span></div>
+    <div class="rl-meta" style="margin:6px 0">Stock is checked from the store every 30 minutes. 0 = never hide.</div>
+    <button class="rl-btn pink wide" onclick="promoSaveSettings(this)">Save</button></div>`;
+}
+async function promoSaveSettings(btn) {
+  await railDo(btn, 'Saving…', async () => { promoData = (await railCall('promo_settings', {body: {min_stock: +document.getElementById('pmMin').value}})).promos; promoRender(); showToast('Saved', 'success'); });
 }
 
 function showToast(msg, type='') {
