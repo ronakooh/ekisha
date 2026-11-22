@@ -1312,6 +1312,8 @@ function railEditorHtml(p) {
     <div class="rl-meta" style="margin-bottom:8px">The garment as if worn by an invisible body: full 3D shape, model removed, the inside of the back neckline showing, light creases. Made from the FRONT photo in step 1 (no hanger photos needed). After you approve one, it becomes the style reference for the next, so the whole series matches. Approved ghost photos appear in Grid promos → Photo library.</div>
     <div class="rl-row" style="margin-bottom:6px"><span class="rl-meta" style="white-space:nowrap">Volume</span>
       <select id="rl-gvol" class="rl-in">${opt('subtle', p.ghost_volume || 'medium', 'Subtle — lightly worn')}${opt('medium', p.ghost_volume || 'medium', 'Medium — full worn shape')}${opt('full', p.ghost_volume || 'medium', 'Full — airy, puffed 3D (Snitch look)')}</select></div>
+    <div class="rl-row" style="margin-bottom:6px"><span class="rl-meta" style="white-space:nowrap">Pose</span>
+      <select id="rl-gpose" class="rl-in">${[['random','🎲 Random — a different pose each try (variety)'],['front','Straight front'],['left','Turned slightly left'],['right','Turned slightly right'],['three_quarter','Three-quarter view'],['tilt','Tilted / floating'],['walk','Walking / in motion']].map(([v, l]) => opt(v, p.ghost_pose || 'front', l)).join('')}</select></div>
     <input id="rl-gnotes" class="rl-in" style="width:100%;margin-bottom:8px" placeholder="Extra instructions (optional), e.g. sleeves rolled to the elbow" value="${railEsc(p.ghost_notes || '')}">
     ${railViewHtml(p, 'ghost')}
 
@@ -1345,7 +1347,7 @@ function railViewHtml(p, view) {
   const st = v.status === 'approved' ? '<span class="rl-badge ok">Approved ✓ (live version)</span>' : '<span class="rl-badge draft">Draft — not on the website</span>';
   return `<div class="rl-checker"><img id="rl-img-${view}" data-rp="p/${h}/${view}/cur_final.webp" data-rv="${v.ver}"></div>
     <div style="margin:8px 0">${st}</div>
-    ${v.approved ? `<div class="rl-row" style="margin-bottom:8px"><span class="rl-meta" style="white-space:nowrap">Download approved:</span>${photoDlButtons(v.approved.final, p.title + ' ' + view)}</div>` : ''}
+    ${v.approved ? `<div class="rl-row" style="margin-bottom:8px"><span class="rl-meta" style="white-space:nowrap">${v.status === 'approved' ? 'Download:' : 'Download live version:'}</span>${photoDlButtons(v.approved.final, p.title + ' ' + view)}</div>` : ''}
     <div class="rl-meta" style="margin-top:6px">Sliders preview instantly here — press “Apply colour changes” to save them. Tap another try to compare:</div><div class="rl-cands">${cands}</div>
     ${sliders}
     <div class="rl-row" style="margin:8px 0">
@@ -1366,7 +1368,7 @@ async function railSaveForm(silent, btn) {
   const body = {handle: p.handle, kind: document.getElementById('rl-kind').value,
     front_desc: document.getElementById('rl-front').value, back_desc: document.getElementById('rl-back').value,
     dupatta: document.getElementById('rl-dup').value, cutout: document.getElementById('rl-cut').checked, bg: document.getElementById('rl-bg').value, refs,
-    ghost_volume: (document.getElementById('rl-gvol') || {}).value || 'medium', ghost_notes: (document.getElementById('rl-gnotes') || {}).value || '',
+    ghost_volume: (document.getElementById('rl-gvol') || {}).value || 'medium', ghost_pose: (document.getElementById('rl-gpose') || {}).value || 'front', ghost_notes: (document.getElementById('rl-gnotes') || {}).value || '',
     rails: [...document.querySelectorAll('#railEditor .rl-rail:checked')].map(x => x.value)};
   const run = async () => { railPut((await railCall('save', {body})).product); };
   if (silent) { await run(); return; }
