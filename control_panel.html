@@ -1345,6 +1345,7 @@ function railViewHtml(p, view) {
   const st = v.status === 'approved' ? '<span class="rl-badge ok">Approved ✓ (live version)</span>' : '<span class="rl-badge draft">Draft — not on the website</span>';
   return `<div class="rl-checker"><img id="rl-img-${view}" data-rp="p/${h}/${view}/cur_final.webp" data-rv="${v.ver}"></div>
     <div style="margin:8px 0">${st}</div>
+    ${v.approved ? `<div class="rl-row" style="margin-bottom:8px"><span class="rl-meta" style="white-space:nowrap">Download approved:</span>${photoDlButtons(v.approved.final, p.title + ' ' + view)}</div>` : ''}
     <div class="rl-meta" style="margin-top:6px">Sliders preview instantly here — press “Apply colour changes” to save them. Tap another try to compare:</div><div class="rl-cands">${cands}</div>
     ${sliders}
     <div class="rl-row" style="margin:8px 0">
@@ -1691,8 +1692,31 @@ function promoLibHtml() {
   return h + `<div class="rl-grid">` + promoLib.map(x => `<div class="rl-card"><div class="rl-checker" style="aspect-ratio:4/5"><img src="${railEsc(x.thumb)}" loading="lazy"></div>
     <div class="rl-name" style="margin-top:6px">${railEsc(x.title)}</div><div class="rl-meta">${x.kind}</div>
     <div class="rl-row" style="margin-top:6px"><button class="rl-btn" style="flex:1" onclick="promoCopy('${railEsc(x.url)}')">Copy link</button>
-    <button class="rl-btn pink" onclick="promoNewTile('${railEsc(x.url)}')">Make tile</button></div></div>`).join('') + `</div>
+    <button class="rl-btn pink" onclick="promoNewTile('${railEsc(x.url)}')">Make tile</button></div>
+    <div class="rl-row" style="margin-top:6px">${photoDlButtons(x.url, x.title + ' ' + x.kind)}</div></div>`).join('') + `</div>
     <button class="refresh-btn" style="margin-top:10px" onclick="railData=null;promoLib=null;promoRender();promoLoadLib()">↻ Refresh photos</button>`;
+}
+async function photoDownload(url, name, fmt, btn) {
+  await railDo(btn, '…', async () => {
+    const res = await fetch(url, {cache: 'no-store'});
+    if (!res.ok) throw new Error('Could not fetch the photo (' + res.status + ')');
+    let blob = await res.blob(), ext = 'webp';
+    if (fmt === 'png') {                       // re-encode in the browser, keeping the transparent background
+      const bmp = await createImageBitmap(blob);
+      const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+      cv.getContext('2d').drawImage(bmp, 0, 0);
+      blob = await new Promise(r => cv.toBlob(r, 'image/png')); ext = 'png';
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(name || 'ekisha-photo').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.${ext}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+}
+function photoDlButtons(url, name) {
+  return `<button class="rl-btn" style="flex:1" onclick="photoDownload('${railEsc(url)}','${railEsc(name)}','png',this)">⬇ PNG</button>
+    <button class="rl-btn" style="flex:1" onclick="photoDownload('${railEsc(url)}','${railEsc(name)}','webp',this)">⬇ WebP</button>`;
 }
 function promoCopy(url) {
   const done = () => showToast('Link copied', 'success');
