@@ -1695,7 +1695,7 @@ async function promoDeleteSlot(id, btn) {
 
 function promoLibHtml() {
   if (!promoLib) return `<div class="metrics-loading"><div class="metrics-spinner"></div>Loading photos…</div>`;
-  let h = `<div class="rl-meta" style="margin-bottom:10px">Approved photos from the Clothing rail tool. Make Ghost 3D photos there (open a product → Ghost 3D photo). “Copy link” is for the Shopify “Ekisha category tiles” section (paste into “…or paste an image link”).</div>`;
+  let h = gridFitPanel() + `<div class="rl-meta" style="margin-bottom:10px">Approved photos from the Clothing rail tool. Make Ghost 3D photos there (open a product → Ghost 3D photo). “Copy link” is for the Shopify “Ekisha category tiles” section (paste into “…or paste an image link”).</div>`;
   if (!promoLib.length) return h + `<div class="rl-box rl-meta">No approved photos yet.</div>`;
   return h + `<div class="rl-grid">` + promoLib.map(x => `<div class="rl-card"><div class="rl-checker" style="aspect-ratio:4/5"><img src="${railEsc(x.thumb)}" loading="lazy"></div>
     <div class="rl-name" style="margin-top:6px">${railEsc(x.title)}</div><div class="rl-meta">${x.kind}</div>
@@ -1722,8 +1722,63 @@ async function photoDownload(url, name, fmt, btn) {
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   });
 }
+// ── "for category grid": garment centred in a box of your grid's shape, with breathing room, at 4x for sharp phones ──
+function gridFit() {
+  let g = {w: 178, h: 200, size: 72, bg: ''};
+  try { g = Object.assign(g, JSON.parse(localStorage.getItem('ekisha_gridfit') || '{}')); } catch (e) {}
+  return g;
+}
+function gridFitSave() {
+  const g = {w: +document.getElementById('gfW').value || 178, h: +document.getElementById('gfH').value || 200,
+    size: Math.max(30, Math.min(100, +document.getElementById('gfS').value || 72)),
+    bg: document.getElementById('gfBgOn').checked ? document.getElementById('gfBg').value : ''};
+  try { localStorage.setItem('ekisha_gridfit', JSON.stringify(g)); } catch (e) {}
+  return g;
+}
+async function gridFitDownload(url, name, btn) {
+  const g = gridFit();
+  await railDo(btn, '…', async () => {
+    const res = await fetch(url, {cache: 'no-store'});
+    if (!res.ok) throw new Error('Could not fetch the photo (' + res.status + ')');
+    const bmp = await createImageBitmap(await res.blob());
+    // find the garment (non-transparent pixels) so the empty margins of the original are ignored
+    const c0 = document.createElement('canvas'); c0.width = bmp.width; c0.height = bmp.height;
+    const x0 = c0.getContext('2d'); x0.drawImage(bmp, 0, 0);
+    const px = x0.getImageData(0, 0, bmp.width, bmp.height).data;
+    let L = bmp.width, R = -1, T = bmp.height, B = -1;
+    for (let y = 0; y < bmp.height; y++) for (let x = 0; x < bmp.width; x++) {
+      if (px[(y * bmp.width + x) * 4 + 3] > 20) { if (x < L) L = x; if (x > R) R = x; if (y < T) T = y; if (y > B) B = y; }
+    }
+    if (R < 0) { L = 0; T = 0; R = bmp.width - 1; B = bmp.height - 1; }
+    const gw = R - L + 1, gh = B - T + 1;
+    const SCALE = 4;                                          // 4x the box size: sharp on every phone screen
+    const W = Math.round(g.w * SCALE), H = Math.round(g.h * SCALE);
+    const k = Math.min((W * g.size / 100) / gw, (H * g.size / 100) / gh);
+    const dw = gw * k, dh = gh * k;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d');
+    if (g.bg) { cx.fillStyle = g.bg; cx.fillRect(0, 0, W, H); }
+    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+    cx.drawImage(c0, L, T, gw, gh, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(name || 'ekisha').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-grid-${W}x${H}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+}
+function gridFitPanel() {
+  const g = gridFit();
+  return `<details class="rl-box"><summary style="cursor:pointer;font-size:12px;font-weight:600">Category grid size — for “⬇ For grid” (now ${g.w}×${g.h}, garment ${g.size}%)</summary>
+    <div class="rl-meta" style="margin:6px 0">Enter the size of one box in your category section (right-click a box → Inspect shows it). The download is 4× that size so it stays sharp on phones, with the garment centred and empty space around it like Snitch.</div>
+    <div class="rl-row" style="flex-wrap:wrap"><span class="rl-meta">Box</span><input id="gfW" class="rl-in" type="number" value="${g.w}" style="max-width:80px"><span class="rl-meta">×</span><input id="gfH" class="rl-in" type="number" value="${g.h}" style="max-width:80px">
+      <span class="rl-meta">Garment fills</span><input id="gfS" class="rl-in" type="number" min="30" max="100" value="${g.size}" style="max-width:70px"><span class="rl-meta">%</span></div>
+    <div class="rl-row" style="margin-top:6px"><label class="rl-cb"><input type="checkbox" id="gfBgOn" ${g.bg ? 'checked' : ''}> Fill background</label><input type="color" id="gfBg" value="${g.bg || '#ffffff'}"><span class="rl-meta">(off = transparent)</span></div>
+    <button class="rl-btn pink wide" style="margin-top:8px" onclick="gridFitSave();promoRender();showToast('Saved','success')">Save size</button></details>`;
+}
 function photoDlButtons(url, name) {
-  return `<button class="rl-btn" style="flex:1" onclick="photoDownload('${railEsc(url)}','${railEsc(name)}','png',this)">⬇ PNG</button>
+  return `<button class="rl-btn pink" style="flex:1.3" onclick="gridFitDownload('${railEsc(url)}','${railEsc(name)}',this)">⬇ For grid</button><button class="rl-btn" style="flex:1" onclick="photoDownload('${railEsc(url)}','${railEsc(name)}','png',this)">⬇ PNG</button>
     <button class="rl-btn" style="flex:1" onclick="photoDownload('${railEsc(url)}','${railEsc(name)}','webp',this)">⬇ WebP</button>`;
 }
 function promoCopy(url) {
