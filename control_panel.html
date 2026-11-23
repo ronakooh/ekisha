@@ -1527,10 +1527,12 @@ async function promoLoadLib() {
 }
 function promoTileById(id) { return (promoData.tiles || []).find(t => t.id === id); }
 function promoColTitle(h) { const c = (promoCols || []).find(x => x.handle === h); return c ? c.title : h; }
+const PM_TS = {s: [7, 10, 9], m: [8, 12, 10], l: [9, 15, 11]};   // eyebrow, title, button px in the panel preview
 function promoTileCard(t, small) {
+  const z = PM_TS[t.ts || 'm'] || PM_TS.m, al = t.ta || 'left';
   return `<div class="pm-tile ${t.on === false ? 'pm-off' : ''}" style="background:${railEsc(t.bg || '#f3efe9')}${small ? ';aspect-ratio:3/4' : ''}">
     <div class="m">${t.image ? `<img src="${railEsc(t.image)}" loading="lazy">` : '<span class="rl-meta">no image</span>'}</div>
-    <div class="b">${t.eyebrow ? `<div class="e">${railEsc(t.eyebrow)}</div>` : ''}<div class="t">${railEsc(t.title || '')}</div><span class="c">${railEsc(t.cta || 'Shop now')} →</span></div></div>`;
+    <div class="b" style="text-align:${al}">${t.eyebrow ? `<div class="e" style="font-size:${z[0]}px">${railEsc(t.eyebrow)}</div>` : ''}<div class="t" style="font-size:${z[1]}px">${railEsc(t.title || '')}</div><span class="c" style="font-size:${z[2]}px">${railEsc(t.cta || 'Shop now')} →</span></div></div>`;
 }
 
 function promoRender() {
@@ -1595,9 +1597,9 @@ function promoTileFormHtml() {
   const cols = (promoCols || []).map(c => `<option value="${railEsc(c.handle)}" ${c.handle === t.target ? 'selected' : ''}>${railEsc(c.title)}${c.count != null ? ' (' + c.count + ')' : ''}</option>`).join('');
   return `<div class="rl-box" style="border-color:var(--pink)">
     <div class="rl-row" style="justify-content:space-between"><div class="rl-name">${t.id ? 'Edit tile' : 'New tile'}</div><button class="rl-btn" onclick="promoForm=null;promoRender()">Close</button></div>
-    <div style="display:grid;grid-template-columns:120px 1fr;gap:12px;margin-top:10px">
+    <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:12px;margin-top:10px">
       <div><div id="pmPreview">${promoTileCard(t, true)}</div><div class="rl-meta" style="text-align:center">preview</div></div>
-      <div>
+      <div style="min-width:0">
         <div class="rl-sub">Picture</div>
         <div class="pm-pick">${lib || '<span class="rl-meta">No approved photos yet. Make a Ghost 3D photo in Clothing rail → open a product.</span>'}</div>
         <label class="rl-btn" style="display:inline-block;cursor:pointer">Upload a picture<input type="file" accept="image/*" hidden onchange="promoUpload(this)"></label>
@@ -1610,10 +1612,14 @@ function promoTileFormHtml() {
     <input class="rl-in" style="width:100%;margin-bottom:6px" placeholder="Button text" value="${railEsc(t.cta)}" oninput="promoForm.item.cta=this.value;promoPreview()">
     <div class="rl-row"><span class="rl-meta">Background</span><input type="color" value="${railEsc(t.bg || '#f3efe9')}" oninput="promoForm.item.bg=this.value;promoPreview()">
       ${['#f3efe9', '#f6e3e7', '#e7eef0', '#eef0e6', '#ffffff'].map(c => `<span onclick="promoForm.item.bg='${c}';promoPreview()" style="width:22px;height:22px;border-radius:50%;background:${c};border:1.5px solid var(--border);cursor:pointer;display:inline-block"></span>`).join('')}</div>
+    <div class="rl-sub">Text size and alignment</div>
+    <div class="rl-seg" style="margin-bottom:6px">${[['s', 'Small'], ['m', 'Medium'], ['l', 'Large']].map(([v, l]) => `<button class="${(t.ts || 'm') === v ? 'on' : ''}" onclick="promoForm.item.ts='${v}';promoSegOn(this);promoPreview()">${l}</button>`).join('')}</div>
+    <div class="rl-seg">${[['left', '⟸ Left'], ['center', 'Centre'], ['right', 'Right ⟹']].map(([v, l]) => `<button class="${(t.ta || 'left') === v ? 'on' : ''}" onclick="promoForm.item.ta='${v}';promoSegOn(this);promoPreview()">${l}</button>`).join('')}</div>
     <button class="rl-btn pink wide" style="margin-top:12px" onclick="promoSaveTile(this)">Save tile</button>
     ${t.id ? `<button class="rl-btn red" style="margin-top:10px" onclick="promoDeleteTile('${railEsc(t.id)}',this)">Delete tile</button>` : ''}
   </div>`;
 }
+function promoSegOn(btn) { btn.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn)); }
 function promoPreview() { const el = document.getElementById('pmPreview'); if (el && promoForm) el.innerHTML = promoTileCard(promoForm.item, true); }
 async function promoUpload(input) {
   try {
